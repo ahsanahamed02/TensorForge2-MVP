@@ -1,0 +1,14 @@
+.venv/
+.venv-wsl/
+__pycache__/
+*.pyc
+.env
+.env.*
+api/job_data/
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+data/train.csv
+data/validation.csv
