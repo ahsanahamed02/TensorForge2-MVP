@@ -12,3 +12,31 @@ Thumbs.db
 
 data/train.csv
 data/validation.csv
+
+# Experimental models and reports
+model/category_model_v1_backup.joblib
+model/category_model_v2.joblib
+model/category_model_v4.joblib
+model/category_model_v5.joblib
+model/category_model_v6.joblib
+model/category_script_specialists_v7.joblib
+model/category_specialists.joblib
+model/gated_specialists_v2.joblib
+model/specialist_gate_v2.joblib
+
+model/category_v2_*.csv
+model/category_v3_*.csv
+model/category_v4_*.csv
+
+model/intent_hints_v3_temp.py
+model/text_features.py
+model/train_category_v2.py
+model/train_category_v4.py
+model/train_category_v5.py
+model/train_category_v6.py
+model/train_category_v7_language.py
+model/train_gated_specialists.py
+model/train_gated_specialists_v2.py
+model/train_specialists.py
+
+reports/
