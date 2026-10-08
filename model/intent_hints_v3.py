@@ -1,54 +1,6 @@
-from pathlib import Path
 import re
 
-import joblib
-import pandas as pd
 
-
-BASE_DIR = Path(__file__).resolve().parent
-
-# =========================================================
-# LOAD MODELS
-# =========================================================
-category_model = joblib.load(
-    BASE_DIR / "category_model_v3.joblib"
-)
-
-urgency_model = joblib.load(
-    BASE_DIR / "urgency_model.joblib"
-)
-
-secondary_detector = joblib.load(
-    BASE_DIR / "secondary_detector.joblib"
-)
-
-secondary_label_model = joblib.load(
-    BASE_DIR / "secondary_label_model.joblib"
-)
-
-
-# =========================================================
-# TEAM ROUTING
-# =========================================================
-TEAM_MAP = {
-    "payment_refund": "Payments & Refunds",
-    "ride_trip_issue": "Ride Operations",
-    "lost_item": "Lost & Found",
-    "order_missing_wrong": "Food Operations",
-    "delivery_delay": "Delivery Operations",
-    "food_quality": "Restaurant Quality",
-    "account_promo": "Account Services",
-    "safety_conduct": "Trust & Safety",
-    "app_technical": "Tech Support",
-    "general_inquiry": "Front-line Support",
-    "spam_irrelevant": "Auto-close / Spam Filter",
-}
-
-
-# =========================================================
-# INTENT HINTS
-# Used ONLY by the V3 category model
-# =========================================================
 def add_intent_hints(text):
     lower = str(text).lower()
     hints = []
@@ -72,7 +24,6 @@ def add_intent_hints(text):
         r"\bcombo.*without\b",
         r"\bpackage count.*short\b",
         r"\bnever selected\b",
-
         r"\bparcel la vaikkala\b",
         r"\bparcel la illa\b",
         r"\border la illa\b",
@@ -80,12 +31,10 @@ def add_intent_hints(text):
         r"\bitem missing\b",
         r"\bfood missing\b",
         r"\bdrink missing\b",
-
         r"பொட்டலத்தில் வைக்கவில்லை",
         r"பார்சலில் இல்லை",
         r"ஆர்டரில் இல்லை",
         r"தவறான உணவு",
-
         r"පාර්සලයට දාලා නැහැ",
         r"ඇණවුමේ නැහැ",
     ]
@@ -107,17 +56,14 @@ def add_intent_hints(text):
         r"\bmoney back\b",
         r"\btransaction\b",
         r"\bcharged\b",
-
         r"\brefund venum\b",
         r"\bmoney return\b",
         r"\bkaasu thiruppi\b",
         r"\bamount thiruppi\b",
         r"\btwice charge\b",
-
         r"பணம்.*திருப்ப",
         r"கட்டணம்",
         r"பணம் திரும்ப",
-
         r"මුදල්.*ආපසු",
         r"ගෙවීම",
     ]
@@ -133,16 +79,13 @@ def add_intent_hints(text):
         r"\bwhere is my order\b",
         r"\bdelivery.*taking\b",
         r"\bdriver.*late\b",
-
         r"\border varala\b",
         r"\bfood varala\b",
         r"\blate ah varuthu\b",
         r"\bdelivery late\b",
-
         r"இன்னும் வரவில்லை",
         r"தாமத",
         r"டெலிவரி.*வரவில்லை",
-
         r"තවම.*ආවේ නැහැ",
         r"ප්‍රමාද",
     ]
@@ -165,16 +108,13 @@ def add_intent_hints(text):
         r"\bglitch\b",
         r"\bfreeze\b",
         r"\bfrozen\b",
-
         r"\bapp work aagala\b",
         r"\bapp open aagala\b",
         r"\blogin panna mudiyala\b",
         r"\berror varuthu\b",
-
         r"உள்நுழைய முடியவில்லை",
         r"செயலி.*வேலை செய்யவில்லை",
         r"பிழை",
-
         r"ලොග්.*වෙන්න බැහැ",
         r"ඇප්.*වැඩ කරන්නේ නැහැ",
     ]
@@ -194,16 +134,13 @@ def add_intent_hints(text):
         r"\bundercooked\b",
         r"\bovercooked\b",
         r"\bsmells bad\b",
-
         r"\bfood cold\b",
         r"\btaste sari illa\b",
         r"\bfood nalla illa\b",
         r"\bquality sari illa\b",
-
         r"உணவு.*குளிர",
         r"சுவை.*சரியில்லை",
         r"உணவு.*கெட்ட",
-
         r"කෑම.*සීතල",
         r"රස.*නැහැ",
     ]
@@ -219,7 +156,6 @@ def add_intent_hints(text):
         r"\bkeys.*left\b",
         r"\bbelonging\b",
         r"\blost item\b",
-
         r"\bphone vittuten\b",
         r"\bbag vittuten\b",
         r"\bitem maranthuten\b",
@@ -267,11 +203,7 @@ def add_intent_hints(text):
 
     def matches(patterns):
         return any(
-            re.search(
-                pattern,
-                lower,
-                re.IGNORECASE
-            )
+            re.search(pattern, lower, re.IGNORECASE)
             for pattern in patterns
         )
 
@@ -302,216 +234,13 @@ def add_intent_hints(text):
     if matches(ride_patterns):
         hints.append("__RIDE_HINT")
 
-    if (
-        "__ORDER_ISSUE_HINT" in hints
-        and "__PAYMENT_HINT" in hints
-    ):
+    if "__ORDER_ISSUE_HINT" in hints and "__PAYMENT_HINT" in hints:
         hints.append("__ORDER_AND_PAYMENT")
 
-    if (
-        "__ORDER_ISSUE_HINT" in hints
-        and "__DELIVERY_HINT" not in hints
-    ):
+    if "__ORDER_ISSUE_HINT" in hints and "__DELIVERY_HINT" not in hints:
         hints.append("__ORDER_CONTENT_PROBLEM")
 
-    if (
-        "__DELIVERY_HINT" in hints
-        and "__ORDER_ISSUE_HINT" not in hints
-    ):
+    if "__DELIVERY_HINT" in hints and "__ORDER_ISSUE_HINT" not in hints:
         hints.append("__PURE_DELIVERY_PROBLEM")
 
     return " ".join(hints)
-
-
-# =========================================================
-# OLD TEXT FORMAT
-# Keep for urgency + secondary models
-# =========================================================
-def build_text(channel, subject, text):
-    subject = subject or ""
-    text = text or ""
-
-    return (
-        f"__CHANNEL_{channel} "
-        f"{subject} "
-        f"{text}"
-    )
-
-
-# =========================================================
-# V3 CATEGORY TEXT FORMAT
-# =========================================================
-def build_category_text(channel, subject, text):
-    subject = subject or ""
-    text = text or ""
-
-    combined = f"{subject} {text}"
-
-    hints = add_intent_hints(
-        combined
-    )
-
-    return (
-        f"__CHANNEL_{channel} "
-        f"{hints} "
-        f"{subject} "
-        f"{text}"
-    )
-
-
-# =========================================================
-# SECONDARY TEXT FORMAT
-# =========================================================
-def build_secondary_text(
-    channel,
-    subject,
-    text,
-    primary
-):
-    subject = subject or ""
-    text = text or ""
-
-    return (
-        f"__PRIMARY_{primary} "
-        f"__CHANNEL_{channel} "
-        f"{subject} "
-        f"{text}"
-    )
-
-
-# =========================================================
-# MAIN PREDICTION
-# =========================================================
-def predict_ticket(
-    channel,
-    subject,
-    text
-):
-    # Old text for urgency + secondary models
-    model_text = build_text(
-        channel,
-        subject,
-        text
-    )
-
-    # V3 text for primary category model
-    category_text = build_category_text(
-        channel,
-        subject,
-        text
-    )
-
-    # -----------------------------------------------------
-    # PRIMARY CATEGORY
-    # -----------------------------------------------------
-    primary = str(
-        category_model.predict(
-            [category_text]
-        )[0]
-    )
-
-    # -----------------------------------------------------
-    # URGENCY
-    # -----------------------------------------------------
-    urgent = bool(
-        urgency_model.predict(
-            [model_text]
-        )[0]
-    )
-
-    # -----------------------------------------------------
-    # SECONDARY DETECTION
-    # -----------------------------------------------------
-    has_secondary = bool(
-        secondary_detector.predict(
-            [model_text]
-        )[0]
-    )
-
-    secondary = None
-
-    # -----------------------------------------------------
-    # SECONDARY LABEL
-    # -----------------------------------------------------
-    if (
-        has_secondary
-        and primary != "spam_irrelevant"
-    ):
-        secondary_text = build_secondary_text(
-            channel,
-            subject,
-            text,
-            primary
-        )
-
-        secondary = str(
-            secondary_label_model.predict(
-                [secondary_text]
-            )[0]
-        )
-
-        if secondary == primary:
-            secondary = None
-
-    # -----------------------------------------------------
-    # SPAM RULE
-    # -----------------------------------------------------
-    if primary == "spam_irrelevant":
-        secondary = None
-        urgent = False
-
-    # -----------------------------------------------------
-    # ROUTING TEAM
-    # -----------------------------------------------------
-    team = TEAM_MAP[primary]
-
-    # -----------------------------------------------------
-    # DECISION SCORE
-    # NOTE:
-    # This is NOT calibrated probability yet.
-    # -----------------------------------------------------
-    decision_scores = (
-        category_model.decision_function(
-            [category_text]
-        )
-    )
-
-    scores = decision_scores[0]
-
-    exp_scores = pd.Series(
-        scores
-    ).apply(
-        lambda x: pow(
-            2.718281828,
-            x
-        )
-    )
-
-    probabilities = (
-        exp_scores /
-        exp_scores.sum()
-    )
-
-    confidence = float(
-        probabilities.max()
-    )
-
-    confidence = round(
-        max(
-            0.0,
-            min(
-                1.0,
-                confidence
-            )
-        ),
-        4
-    )
-
-    return {
-        "category": primary,
-        "secondary_category": secondary,
-        "team": team,
-        "is_urgent": urgent,
-        "confidence": confidence,
-        "model_version": "v1.1"
-    }

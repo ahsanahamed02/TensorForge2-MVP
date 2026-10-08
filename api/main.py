@@ -10,6 +10,7 @@ from typing import Optional
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse, Response
 from model.predictor import predict_ticket
+from fastapi.middleware.cors import CORSMiddleware
 # =========================================================
 # CONFIG
 # =========================================================
@@ -33,6 +34,15 @@ app = FastAPI(
     title="TensorForge 2.0 - RouteIQ API",
     version=MODEL_VERSION
 )
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 # =========================================================
 # OPENAPI DOCUMENTATION SCHEMAS
 # =========================================================
