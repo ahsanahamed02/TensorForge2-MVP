@@ -10,108 +10,327 @@ const API_KEY = import.meta.env.VITE_API_KEY || "";
 const MODEL_VERSION = "v1.2";
 const MAX_BATCH_SIZE = 100;
 
+const ICONS = {
+  dashboard:
+    "M3 3h7v9H3zM14 3h7v5h-7zM14 12h7v9h-7zM3 16h7v5H3z",
+  single:
+    "M4 5h16v11H9l-5 4z",
+  batch:
+    "M12 3l9 5-9 5-9-5zM3 13l9 5 9-5",
+  analytics:
+    "M4 20V10M10 20V4M16 20v-7M22 20H2",
+  status:
+    "M3 12h4l3-8 4 16 3-8h4",
+  send:
+    "M22 2L11 13M22 2l-7 20-4-9-9-4z",
+  route:
+    "M6 17a2 2 0 1 0 0 4 2 2 0 0 0 0-4M18 3a2 2 0 1 0 0 4 2 2 0 0 0 0-4M8 19h7a3 3 0 0 0 0-6H9a3 3 0 0 1 0-6h7",
+  alert:
+    "M12 3l10 18H2zM12 10v5M12 18h.01",
+
+  payment_refund:
+    "M2 5h20v14H2zM2 10h20M6 15h4",
+  order_missing_wrong:
+    "M21 8l-9-5-9 5v8l9 5 9-5zM3 8l9 5 9-5M12 13v8",
+  delivery_delay:
+    "M3 6h11v10H3zM14 10h4l3 3v3h-7M7 16a2 2 0 1 0 0 4 2 2 0 0 0 0-4M17 16a2 2 0 1 0 0 4 2 2 0 0 0 0-4",
+  food_quality:
+    "M4 11h16a8 8 0 0 1-16 0zM9 4c0 1.5 1 1.5 1 3M14 4c0 1.5 1 1.5 1 3",
+  app_technical:
+    "M7 2h10v20H7zM11 18h2",
+  account_promo:
+    "M12 4a4 4 0 1 0 0 8 4 4 0 0 0 0-8M4 21a8 8 0 0 1 16 0",
+  lost_item:
+    "M11 4a7 7 0 1 0 0 14 7 7 0 0 0 0-14M21 21l-5-5",
+  ride_trip_issue:
+    "M5 17h14v-5l-2-5H7l-2 5zM5 12h14M8 15.5h.01M16 15.5h.01",
+  safety_conduct:
+    "M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z",
+  general_inquiry:
+    "M4 5h16v11H9l-5 4z",
+  spam_irrelevant:
+    "M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18M5.6 5.6l12.8 12.8",
+};
+
+const NAV = [
+  ["dashboard", "Dashboard", "Support routing dashboard"],
+  ["single", "Single ticket", "Single ticket analysis"],
+  ["batch", "Batch analysis", "Batch ticket analysis"],
+  ["analytics", "Analytics", "Ticket analytics"],
+  ["status", "System status", "System status"],
+];
+
+const formatLabel = (value) => {
+  if (!value) return "None";
+
+  return String(value)
+    .replaceAll("_", " ")
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+};
+
+const pct = (value) =>
+  Math.round((value || 0) * 100);
+
+const getHeaders = () => {
+  const headers = {
+    "Content-Type": "application/json",
+  };
+
+  if (API_KEY) {
+    headers["X-API-Key"] = API_KEY;
+  }
+
+  return headers;
+};
+
+const getErrorMessage = async (
+  response,
+  fallback = "Request failed."
+) => {
+  try {
+    const data = await response.json();
+
+    if (typeof data?.detail === "string") {
+      return data.detail;
+    }
+
+    return (
+      data?.error?.message ||
+      data?.detail?.message ||
+      fallback
+    );
+  } catch {
+    return fallback;
+  }
+};
+
+function Icon({ name, size = 18 }) {
+  return (
+    <svg
+      className="ico"
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      aria-hidden="true"
+    >
+      <path
+        d={
+          ICONS[name] ||
+          ICONS.general_inquiry
+        }
+      />
+    </svg>
+  );
+}
+
+function Panel({
+  label,
+  title,
+  chip,
+  children,
+  className = "",
+  i = 0,
+}) {
+  return (
+    <div
+      className={`panel ${className}`}
+      style={{ "--i": i }}
+    >
+      {(label || title || chip) && (
+        <div className="panel-header">
+          <div>
+            {label && (
+              <p className="panel-label">
+                {label}
+              </p>
+            )}
+
+            {title && (
+              <h2>{title}</h2>
+            )}
+          </div>
+
+          {chip}
+        </div>
+      )}
+
+      {children}
+    </div>
+  );
+}
+
+function Stat({
+  label,
+  value,
+  note,
+  i = 0,
+}) {
+  return (
+    <div
+      className="stat-card"
+      style={{ "--i": i }}
+    >
+      <span>{label}</span>
+      <strong>{value}</strong>
+      <small>{note}</small>
+    </div>
+  );
+}
+
+function Empty({ title, text }) {
+  return (
+    <div className="empty-result">
+      <div className="result-icon">
+        <Icon
+          name="route"
+          size={25}
+        />
+      </div>
+
+      <h3>{title}</h3>
+      <p>{text}</p>
+    </div>
+  );
+}
+
+function ConfidenceRing({ value = 0 }) {
+  const percent = pct(value);
+
+  return (
+    <div className="confidence-ring">
+      <svg viewBox="0 0 120 120">
+        <circle
+          cx="60"
+          cy="60"
+          r="50"
+          className="ring-track"
+        />
+
+        <circle
+          cx="60"
+          cy="60"
+          r="50"
+          className="ring-value"
+          style={{
+            "--offset":
+              314 -
+              314 *
+                Math.min(
+                  1,
+                  Math.max(0, value)
+                ),
+          }}
+        />
+      </svg>
+
+      <div className="ring-number">
+        <strong>{percent}%</strong>
+        <span>confidence</span>
+      </div>
+    </div>
+  );
+}
+
 function App() {
-  const [activeView, setActiveView] = useState("dashboard");
+  const [
+    activeView,
+    setActiveView,
+  ] = useState("dashboard");
 
-  // =========================================================
-  // HEALTH
-  // =========================================================
+  const [
+    health,
+    setHealth,
+  ] = useState(null);
 
-  const [health, setHealth] = useState(null);
-  const [healthLoading, setHealthLoading] = useState(false);
-  const [healthError, setHealthError] = useState("");
+  const [
+    healthLoading,
+    setHealthLoading,
+  ] = useState(false);
 
-  // =========================================================
-  // SINGLE TICKET
-  // =========================================================
+  const [
+    healthError,
+    setHealthError,
+  ] = useState("");
 
-  const [channel, setChannel] = useState("email");
-  const [subject, setSubject] = useState("");
-  const [text, setText] = useState("");
+  const [
+    channel,
+    setChannel,
+  ] = useState("email");
 
-  const [result, setResult] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
+  const [
+    subject,
+    setSubject,
+  ] = useState("");
 
-  // =========================================================
-  // BATCH
-  // =========================================================
+  const [
+    text,
+    setText,
+  ] = useState("");
 
-  const [batchText, setBatchText] = useState("");
-  const [batchResults, setBatchResults] = useState([]);
-  const [batchLoading, setBatchLoading] = useState(false);
-  const [batchError, setBatchError] = useState("");
+  const [
+    result,
+    setResult,
+  ] = useState(null);
 
-  // =========================================================
-  // HELPERS
-  // =========================================================
+  const [
+    loading,
+    setLoading,
+  ] = useState(false);
 
-  const formatLabel = (value) => {
-    if (!value) {
-      return "None";
-    }
+  const [
+    error,
+    setError,
+  ] = useState("");
 
-    return String(value)
-      .replaceAll("_", " ")
-      .replace(/\b\w/g, (letter) => letter.toUpperCase());
-  };
+  const [
+    batchText,
+    setBatchText,
+  ] = useState("");
 
-  const getHeaders = () => {
-    const headers = {
-      "Content-Type": "application/json",
-    };
+  const [
+    batchResults,
+    setBatchResults,
+  ] = useState([]);
 
-    if (API_KEY) {
-      headers["X-API-Key"] = API_KEY;
-    }
+  const [
+    batchLoading,
+    setBatchLoading,
+  ] = useState(false);
 
-    return headers;
-  };
+  const [
+    batchError,
+    setBatchError,
+  ] = useState("");
 
-  const getErrorMessage = async (
-    response,
-    fallback = "Request failed."
-  ) => {
-    try {
-      const data = await response.json();
-
-      if (typeof data?.detail === "string") {
-        return data.detail;
-      }
-
-      return (
-        data?.error?.message ||
-        data?.detail?.message ||
-        fallback
-      );
-    } catch {
-      return fallback;
-    }
-  };
-
-  // =========================================================
-  // HEALTH CHECK
-  // =========================================================
+  const online =
+    health?.status === "ok";
 
   const checkHealth = async () => {
     setHealthLoading(true);
     setHealthError("");
 
     try {
-      const response = await fetch(`${API_URL}/health`);
+      const response =
+        await fetch(
+          `${API_URL}/health`
+        );
 
       if (!response.ok) {
-        throw new Error("Health check failed.");
+        throw new Error(
+          "Health check failed."
+        );
       }
 
-      const data = await response.json();
+      const data =
+        await response.json();
 
       setHealth(data);
     } catch (err) {
       setHealth(null);
 
       setHealthError(
-        err.message || "Unable to reach API."
+        err.message ||
+          "Unable to reach API."
       );
     } finally {
       setHealthLoading(false);
@@ -122,13 +341,12 @@ function App() {
     checkHealth();
   }, []);
 
-  // =========================================================
-  // SINGLE TICKET PREDICTION
-  // =========================================================
-
   const analyzeTicket = async () => {
     if (!text.trim()) {
-      setError("Ticket message is required.");
+      setError(
+        "Ticket message is required."
+      );
+
       return;
     }
 
@@ -137,32 +355,38 @@ function App() {
     setResult(null);
 
     try {
-      const response = await fetch(
-        `${API_URL}/predict`,
-        {
-          method: "POST",
+      const response =
+        await fetch(
+          `${API_URL}/predict`,
+          {
+            method: "POST",
 
-          headers: getHeaders(),
+            headers:
+              getHeaders(),
 
-          body: JSON.stringify({
-            ticket_id: `WEB-${Date.now()}`,
-            channel,
-            subject: subject.trim(),
-            text: text.trim(),
-          }),
-        }
-      );
-
-      if (!response.ok) {
-        const message = await getErrorMessage(
-          response,
-          "Prediction failed."
+            body:
+              JSON.stringify({
+                ticket_id: `WEB-${Date.now()}`,
+                channel,
+                subject:
+                  subject.trim(),
+                text:
+                  text.trim(),
+              }),
+          }
         );
 
-        throw new Error(message);
+      if (!response.ok) {
+        throw new Error(
+          await getErrorMessage(
+            response,
+            "Prediction failed."
+          )
+        );
       }
 
-      const data = await response.json();
+      const data =
+        await response.json();
 
       setResult(data);
     } catch (err) {
@@ -182,18 +406,19 @@ function App() {
     setError("");
   };
 
-  // =========================================================
-  // BATCH
-  // =========================================================
+  const batchLines = useMemo(
+    () =>
+      batchText
+        .split("\n")
+        .map((line) =>
+          line.trim()
+        )
+        .filter(Boolean),
+    [batchText]
+  );
 
-  const batchLines = useMemo(() => {
-    return batchText
-      .split("\n")
-      .map((line) => line.trim())
-      .filter(Boolean);
-  }, [batchText]);
-
-  const batchCount = batchLines.length;
+  const batchCount =
+    batchLines.length;
 
   const analyzeBatch = async () => {
     if (batchCount === 0) {
@@ -204,7 +429,10 @@ function App() {
       return;
     }
 
-    if (batchCount > MAX_BATCH_SIZE) {
+    if (
+      batchCount >
+      MAX_BATCH_SIZE
+    ) {
       setBatchError(
         `Maximum ${MAX_BATCH_SIZE} tickets are allowed for synchronous batch analysis.`
       );
@@ -217,50 +445,54 @@ function App() {
     setBatchResults([]);
 
     try {
-      const timestamp = Date.now();
+      const timestamp =
+        Date.now();
 
-      const tickets = batchLines.map(
-        (line, index) => ({
-          ticket_id: `BATCH-${timestamp}-${index + 1}`,
-          channel: "email",
-          subject: "",
-          text: line,
-        })
-      );
+      const tickets =
+        batchLines.map(
+          (line, index) => ({
+            ticket_id: `BATCH-${timestamp}-${index + 1}`,
+            channel: "email",
+            subject: "",
+            text: line,
+          })
+        );
 
-      const response = await fetch(
-        `${API_URL}/predict/batch`,
-        {
-          method: "POST",
+      const response =
+        await fetch(
+          `${API_URL}/predict/batch`,
+          {
+            method: "POST",
 
-          headers: getHeaders(),
+            headers:
+              getHeaders(),
 
-          body: JSON.stringify({
-            tickets,
-          }),
-        }
-      );
+            body:
+              JSON.stringify({
+                tickets,
+              }),
+          }
+        );
 
       if (!response.ok) {
-        const message = await getErrorMessage(
-          response,
-          "Batch prediction failed."
-        );
-
-        throw new Error(message);
-      }
-
-      const data = await response.json();
-
-      if (Array.isArray(data)) {
-        setBatchResults(data);
-      } else {
-        setBatchResults(
-          data.predictions ||
-            data.results ||
-            []
+        throw new Error(
+          await getErrorMessage(
+            response,
+            "Batch prediction failed."
+          )
         );
       }
+
+      const data =
+        await response.json();
+
+      setBatchResults(
+        Array.isArray(data)
+          ? data
+          : data.predictions ||
+              data.results ||
+              []
+      );
     } catch (err) {
       setBatchError(
         err.message ||
@@ -277,100 +509,380 @@ function App() {
     setBatchError("");
   };
 
-  // =========================================================
-  // VALUES
-  // =========================================================
+  const analytics = useMemo(
+    () => {
+      const total =
+        batchResults.length;
 
-  const confidencePercent = result
-    ? Math.round(
-        (result.confidence || 0) * 100
-      )
-    : 0;
+      const urgentCount =
+        batchResults.filter(
+          (item) =>
+            item.is_urgent
+        ).length;
 
-  const analytics = useMemo(() => {
-    const total = batchResults.length;
+      const normalCount =
+        total -
+        urgentCount;
 
-    const urgentCount =
-      batchResults.filter(
-        (item) => item.is_urgent
-      ).length;
+      const avgConfidence =
+        total > 0
+          ? pct(
+              batchResults.reduce(
+                (
+                  sum,
+                  item
+                ) =>
+                  sum +
+                  (item.confidence ||
+                    0),
+                0
+              ) / total
+            )
+          : 0;
 
-    const normalCount =
-      total - urgentCount;
+      const counts = {};
 
-    const avgConfidence =
-      total > 0
-        ? Math.round(
-            (batchResults.reduce(
-              (sum, item) =>
-                sum +
-                (item.confidence || 0),
-              0
-            ) /
-              total) *
-              100
-          )
-        : 0;
+      batchResults.forEach(
+        (item) => {
+          const category =
+            item.category ||
+            "unknown";
 
-    const categoryCounts = {};
-
-    batchResults.forEach((item) => {
-      const category =
-        item.category || "unknown";
-
-      categoryCounts[category] =
-        (categoryCounts[category] || 0) +
-        1;
-    });
-
-    const categoryEntries =
-      Object.entries(
-        categoryCounts
-      ).sort(
-        (a, b) => b[1] - a[1]
+          counts[category] =
+            (counts[
+              category
+            ] || 0) + 1;
+        }
       );
 
-    return {
-      total,
-      urgentCount,
-      normalCount,
-      avgConfidence,
-      categoryEntries,
-    };
-  }, [batchResults]);
+      return {
+        total,
+        urgentCount,
+        normalCount,
+        avgConfidence,
 
-  // =========================================================
-  // SINGLE TICKET UI
-  // =========================================================
+        categoryEntries:
+          Object.entries(
+            counts
+          ).sort(
+            (a, b) =>
+              b[1] - a[1]
+          ),
+      };
+    },
+    [batchResults]
+  );
 
-  const renderSingleTicket = () => (
-    <>
-      <section className="workspace-grid">
-        <div className="panel analyzer-panel">
-          <div className="panel-header">
-            <div>
-              <p className="panel-label">
-                Single Ticket Analyzer
-              </p>
+  const renderDashboard = () => (
+    <section className="dashboard-page">
+      <div className="hero-section">
+        <div className="hero-content">
+          <span className="hero-pill">
+            AI Support Intelligence
+          </span>
 
-              <h2>
-                Analyze a support request
-              </h2>
-            </div>
-
-            <span className="panel-chip">
-              Real-time inference
+          <h1 className="hero-title">
+            AI Support Ticket
+            <span>
+              {" "}
+              Classifier & Router
             </span>
+          </h1>
+
+          <p className="hero-description">
+            RouteIQ classifies
+            multilingual customer
+            support tickets, detects
+            urgent requests, and routes
+            each ticket to the correct
+            support team.
+          </p>
+
+          <div className="hero-actions">
+            <button
+              className="primary-btn"
+              onClick={() =>
+                setActiveView(
+                  "single"
+                )
+              }
+            >
+              <Icon
+                name="single"
+                size={17}
+              />
+
+              Analyze one ticket
+            </button>
+
+            <button
+              className="secondary-btn"
+              onClick={() =>
+                setActiveView(
+                  "batch"
+                )
+              }
+            >
+              <Icon
+                name="batch"
+                size={17}
+              />
+
+              Analyze batch
+            </button>
+          </div>
+        </div>
+
+        <div className="hero-visual">
+          <div className="floating-card fc-1">
+            <Icon
+              name="single"
+              size={21}
+            />
+
+            <div>
+              <span>Customer ticket</span>
+              <strong>
+                “My order is late”
+              </strong>
+            </div>
           </div>
 
+          <div className="flow-arrow">
+            ↓
+          </div>
+
+          <div className="floating-card fc-2">
+            <Icon
+              name="delivery_delay"
+              size={21}
+            />
+
+            <div>
+              <span>
+                AI classification
+              </span>
+
+              <strong>
+                Delivery Delay
+              </strong>
+            </div>
+          </div>
+
+          <div className="flow-arrow">
+            ↓
+          </div>
+
+          <div className="floating-card fc-3">
+            <Icon
+              name="route"
+              size={21}
+            />
+
+            <div>
+              <span>
+                Routed team
+              </span>
+
+              <strong>
+                Delivery Operations
+              </strong>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="stats-grid">
+        <Stat
+          i={0}
+          label="Category accuracy"
+          value="88.1%"
+          note="Validation-tuned score"
+        />
+
+        <Stat
+          i={1}
+          label="Urgency accuracy"
+          value="97.1%"
+          note="Validation accuracy"
+        />
+
+        <Stat
+          i={2}
+          label="Ticket categories"
+          value="11"
+          note="Automated routing classes"
+        />
+
+        <Stat
+          i={3}
+          label="API status"
+          value={
+            online
+              ? "Healthy"
+              : "Offline"
+          }
+          note="Live backend health"
+        />
+      </div>
+
+      <div className="two-col">
+        <Panel
+          i={4}
+          label="How it works"
+          title="From ticket to team in seconds"
+        >
+          <div className="step-flow">
+            <div className="step-item">
+              <div className="step-number">
+                1
+              </div>
+
+              <div>
+                <strong>
+                  Ticket Input
+                </strong>
+
+                <p>
+                  Customer message
+                  enters RouteIQ.
+                </p>
+              </div>
+            </div>
+
+            <div className="step-line" />
+
+            <div className="step-item">
+              <div className="step-number">
+                2
+              </div>
+
+              <div>
+                <strong>
+                  AI Classification
+                </strong>
+
+                <p>
+                  Detect category
+                  and urgency.
+                </p>
+              </div>
+            </div>
+
+            <div className="step-line" />
+
+            <div className="step-item">
+              <div className="step-number">
+                3
+              </div>
+
+              <div>
+                <strong>
+                  Team Routing
+                </strong>
+
+                <p>
+                  Send to the
+                  correct support
+                  team.
+                </p>
+              </div>
+            </div>
+          </div>
+        </Panel>
+
+        <Panel
+          i={5}
+          label="Languages"
+          title="Multilingual support"
+        >
+          <div className="language-cloud">
+            {[
+              "English",
+              "Sinhala",
+              "Tamil",
+              "Singlish",
+              "Tanglish",
+              "Mixed",
+            ].map((language) => (
+              <span key={language}>
+                {language}
+              </span>
+            ))}
+          </div>
+
+          <p className="language-note">
+            Built for multilingual
+            customer support text
+            common in Sri Lanka.
+          </p>
+        </Panel>
+      </div>
+    </section>
+  );
+
+  const renderSingle = () => (
+    <section>
+      <div className="stats-grid compact-stats">
+        <Stat
+          i={0}
+          label="API"
+          value={
+            online
+              ? "Healthy"
+              : "Offline"
+          }
+          note="Live connection"
+        />
+
+        <Stat
+          i={1}
+          label="Model"
+          value={
+            health?.model_version ||
+            MODEL_VERSION
+          }
+          note="Active inference"
+        />
+
+        <Stat
+          i={2}
+          label="Categories"
+          value="11"
+          note="Primary classes"
+        />
+
+        <Stat
+          i={3}
+          label="Mode"
+          value="Real-time"
+          note="Single prediction"
+        />
+      </div>
+
+      <div className="workspace-grid">
+        <Panel
+          i={0}
+          label="Single Ticket"
+          title="Analyze a support request"
+          chip={
+            <span className="panel-chip live">
+              Live inference
+            </span>
+          }
+        >
           <div className="form-grid">
             <div className="form-group">
-              <label>Channel</label>
+              <label>
+                Channel
+              </label>
 
               <select
                 value={channel}
                 onChange={(e) =>
-                  setChannel(e.target.value)
+                  setChannel(
+                    e.target.value
+                  )
                 }
               >
                 <option value="email">
@@ -388,31 +900,44 @@ function App() {
             </div>
 
             <div className="form-group">
-              <label>Subject</label>
+              <label>
+                Subject
+              </label>
 
               <input
-                type="text"
-                placeholder="Example: Duplicate payment"
                 value={subject}
                 onChange={(e) =>
-                  setSubject(e.target.value)
+                  setSubject(
+                    e.target.value
+                  )
                 }
+                placeholder="Example: Duplicate payment"
               />
             </div>
 
             <div className="form-group full-width">
               <label>
-                Ticket message
+                Customer message
               </label>
 
-              <textarea
-                rows="8"
-                placeholder="Paste the customer support message here..."
-                value={text}
-                onChange={(e) =>
-                  setText(e.target.value)
-                }
-              />
+              <div
+                className={`field-wrap ${
+                  loading
+                    ? "scanning"
+                    : ""
+                }`}
+              >
+                <textarea
+                  rows="8"
+                  value={text}
+                  onChange={(e) =>
+                    setText(
+                      e.target.value
+                    )
+                  }
+                  placeholder="Paste the support ticket here..."
+                />
+              </div>
             </div>
           </div>
 
@@ -426,98 +951,138 @@ function App() {
             <div className="request-preview">
               <span>
                 {text.trim()
-                  ? "Input ready"
+                  ? "Ready to analyze"
                   : "Waiting for ticket"}
               </span>
 
               <small>
-                {text.length} characters ·{" "}
-                {channel}
+                {text.length} characters
               </small>
             </div>
 
-            <div
-              style={{
-                display: "flex",
-                gap: "10px",
-                flexWrap: "wrap",
-              }}
-            >
+            <div className="btn-row">
               <button
-                className="nav-item"
-                onClick={clearSingle}
-                type="button"
-                disabled={loading}
+                className="ghost-btn"
+                onClick={
+                  clearSingle
+                }
               >
                 Clear
               </button>
 
               <button
-                className="analyze-btn"
-                onClick={analyzeTicket}
+                className="primary-btn"
+                onClick={
+                  analyzeTicket
+                }
                 disabled={
                   loading ||
                   !text.trim()
                 }
               >
+                {loading ? (
+                  <span className="spinner" />
+                ) : (
+                  <Icon
+                    name="send"
+                    size={16}
+                  />
+                )}
+
                 {loading
                   ? "Analyzing..."
-                  : "Analyze Ticket"}
+                  : "Analyze ticket"}
               </button>
             </div>
           </div>
-        </div>
+        </Panel>
 
-        <div className="panel result-panel">
-          <div className="panel-header">
-            <div>
-              <p className="panel-label">
-                Prediction Output
-              </p>
-
-              <h2>
-                Routing decision
-              </h2>
-            </div>
-
-            {result?.model_version && (
+        <Panel
+          i={1}
+          className="result-panel"
+          label="Prediction"
+          title="Routing decision"
+          chip={
+            result?.model_version && (
               <span className="panel-chip">
                 Model{" "}
-                {result.model_version}
+                {
+                  result.model_version
+                }
               </span>
-            )}
-          </div>
-
+            )
+          }
+        >
           {!result ? (
-            <div className="empty-result">
-              <div className="result-icon">
-                AI
-              </div>
-
-              <h3>
-                {loading
-                  ? "Running inference..."
-                  : "Ready for analysis"}
-              </h3>
-
-              <p>
-                {loading
-                  ? "RouteIQ is processing the ticket using the trained machine-learning pipeline."
-                  : "Enter a ticket and run the model to view category, urgency, confidence and assigned team."}
-              </p>
-            </div>
+            <Empty
+              title={
+                loading
+                  ? "Running AI analysis..."
+                  : "Ready for analysis"
+              }
+              text="RouteIQ will show the predicted category, urgency, confidence and support team here."
+            />
           ) : (
             <div className="prediction-result">
-              <div className="prediction-main">
-                <span className="result-label">
-                  Primary Category
-                </span>
+              <div className="prediction-top">
+                <ConfidenceRing
+                  value={
+                    result.confidence
+                  }
+                />
 
-                <h3>
+                <div className="prediction-main">
+                  <span>
+                    Primary category
+                  </span>
+
+                  <h3>
+                    <Icon
+                      name={
+                        result.category
+                      }
+                      size={20}
+                    />
+
+                    {formatLabel(
+                      result.category
+                    )}
+                  </h3>
+
+                  {result.is_urgent && (
+                    <span className="urgent-badge">
+                      <Icon
+                        name="alert"
+                        size={14}
+                      />
+                      Urgent
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              <div className="route-visual">
+                <div className="route-node">
+                  Ticket
+                </div>
+
+                <div className="route-line">
+                  <i />
+                </div>
+
+                <div className="route-node category-node">
                   {formatLabel(
                     result.category
                   )}
-                </h3>
+                </div>
+
+                <div className="route-line">
+                  <i />
+                </div>
+
+                <div className="route-node team-node">
+                  {result.team}
+                </div>
               </div>
 
               <div className="prediction-grid">
@@ -527,7 +1092,8 @@ function App() {
                   </span>
 
                   <strong>
-                    {result.team || "—"}
+                    {result.team ||
+                      "—"}
                   </strong>
                 </div>
 
@@ -551,7 +1117,7 @@ function App() {
 
                 <div className="prediction-card">
                   <span>
-                    Secondary Category
+                    Secondary
                   </span>
 
                   <strong>
@@ -563,7 +1129,7 @@ function App() {
 
                 <div className="prediction-card">
                   <span>
-                    Model Version
+                    Model
                   </span>
 
                   <strong>
@@ -573,149 +1139,57 @@ function App() {
                 </div>
               </div>
 
-              <div className="confidence-box">
-                <div className="confidence-header">
-                  <span>
-                    Confidence Indicator
-                  </span>
-
-                  <strong>
-                    {confidencePercent}%
-                  </strong>
-                </div>
-
-                <div className="confidence-track">
-                  <div
-                    className="confidence-fill"
-                    style={{
-                      width: `${confidencePercent}%`,
-                    }}
-                  />
-                </div>
-
-                <small>
-                  Decision-score based
-                  indicator; not a calibrated
-                  probability.
-                </small>
-              </div>
-
-              {result.ticket_id && (
-                <div className="ticket-reference">
-                  Ticket ID:{" "}
-                  {result.ticket_id}
-                </div>
-              )}
+              <p className="confidence-note">
+                Confidence is a
+                decision-score based
+                indicator, not a
+                calibrated probability.
+              </p>
             </div>
           )}
-
-          <div className="result-metadata">
-            <div>
-              <span>Endpoint</span>
-              <strong>
-                /predict
-              </strong>
-            </div>
-
-            <div>
-              <span>Model</span>
-
-              <strong>
-                {result?.model_version ||
-                  health?.model_version ||
-                  MODEL_VERSION}
-              </strong>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section className="bottom-grid">
-        <div className="panel compact-panel">
-          <p className="panel-label">
-            Pipeline
-          </p>
-
-          <h3>
-            Inference workflow
-          </h3>
-
-          <div className="pipeline">
-            <span>Ticket Input</span>
-            <span>→</span>
-            <span>Text Features</span>
-            <span>→</span>
-            <span>ML Models</span>
-            <span>→</span>
-            <span>Team Routing</span>
-          </div>
-        </div>
-
-        <div className="panel compact-panel">
-          <p className="panel-label">
-            System
-          </p>
-
-          <h3>
-            Competition-ready
-            architecture
-          </h3>
-
-          <p className="compact-text">
-            React frontend connected
-            to a FastAPI inference
-            service with authenticated
-            prediction and batch
-            endpoints.
-          </p>
-        </div>
-      </section>
-    </>
+        </Panel>
+      </div>
+    </section>
   );
 
-  // =========================================================
-  // BATCH UI
-  // =========================================================
-
-  const renderBatchAnalysis = () => (
+  const renderBatch = () => (
     <section>
-      <div className="panel">
-        <div className="panel-header">
-          <div>
-            <p className="panel-label">
-              Batch Analysis
-            </p>
-
-            <h2>
-              Analyze multiple
-              support tickets
-            </h2>
-          </div>
-
+      <Panel
+        i={0}
+        label="Batch Analysis"
+        title="Analyze multiple support tickets"
+        chip={
           <span className="panel-chip">
             /predict/batch
           </span>
-        </div>
-
+        }
+      >
         <div className="form-group">
           <label>
-            Tickets — one ticket per
-            line
+            One ticket per line
           </label>
 
-          <textarea
-            rows="10"
-            value={batchText}
-            onChange={(e) =>
-              setBatchText(
-                e.target.value
-              )
-            }
-            placeholder={`I was charged twice and need a refund.
+          <div
+            className={`field-wrap ${
+              batchLoading
+                ? "scanning"
+                : ""
+            }`}
+          >
+            <textarea
+              rows="7"
+              value={batchText}
+              onChange={(e) =>
+                setBatchText(
+                  e.target.value
+                )
+              }
+              placeholder={`I was charged twice and need a refund.
 My food order has not arrived yet.
 Connection is fine but the food menu is not loading.
 The driver behaved inappropriately.`}
-          />
+            />
+          </div>
         </div>
 
         {batchError && (
@@ -735,267 +1209,146 @@ The driver behaved inappropriately.`}
             </span>
 
             <small>
-              Maximum{" "}
-              {MAX_BATCH_SIZE} tickets
-              per synchronous request
+              Up to{" "}
+              {MAX_BATCH_SIZE}{" "}
+              tickets per synchronous
+              request
             </small>
           </div>
 
-          <div
-            style={{
-              display: "flex",
-              gap: "10px",
-              flexWrap: "wrap",
-            }}
-          >
+          <div className="btn-row">
             <button
-              className="nav-item"
-              onClick={clearBatch}
-              type="button"
-              disabled={batchLoading}
+              className="ghost-btn"
+              onClick={
+                clearBatch
+              }
             >
               Clear
             </button>
 
             <button
-              className="analyze-btn"
-              onClick={analyzeBatch}
+              className="primary-btn"
+              onClick={
+                analyzeBatch
+              }
               disabled={
                 batchLoading ||
                 batchCount === 0
               }
             >
+              {batchLoading ? (
+                <span className="spinner" />
+              ) : (
+                <Icon
+                  name="send"
+                  size={16}
+                />
+              )}
+
               {batchLoading
-                ? "Analyzing Batch..."
-                : "Run Batch Analysis"}
+                ? "Analyzing..."
+                : "Run batch analysis"}
             </button>
           </div>
         </div>
-      </div>
+      </Panel>
 
-      <div
-        className="panel"
-        style={{
-          marginTop: "18px",
-        }}
-      >
-        <div className="panel-header">
-          <div>
-            <p className="panel-label">
-              Batch Results
-            </p>
-
-            <h2>
-              Routing predictions
-            </h2>
-          </div>
-
-          {batchResults.length > 0 && (
-            <span className="panel-chip">
-              {batchResults.length}{" "}
+      <Panel
+        i={1}
+        className="batch-result-panel"
+        label="Results"
+        title="Routing predictions"
+        chip={
+          batchResults.length >
+            0 && (
+            <span className="panel-chip live">
+              {
+                batchResults.length
+              }{" "}
               predictions
             </span>
-          )}
-        </div>
-
-        {batchResults.length === 0 ? (
-          <div className="empty-result">
-            <div className="result-icon">
-              AI
-            </div>
-
-            <h3>
-              {batchLoading
-                ? "Processing batch..."
-                : "No batch results yet"}
-            </h3>
-
-            <p>
-              Enter multiple tickets
-              above and run batch
-              analysis to view routing
-              decisions.
-            </p>
-          </div>
+          )
+        }
+      >
+        {batchResults.length ===
+        0 ? (
+          <Empty
+            title="No batch results yet"
+            text="Run batch analysis to view categories, urgency and support-team routing."
+          />
         ) : (
-          <div
-            style={{
-              overflowX: "auto",
-            }}
-          >
-            <table
-              style={{
-                width: "100%",
-                borderCollapse:
-                  "collapse",
-                minWidth: "850px",
-              }}
-            >
+          <div className="table-wrap">
+            <table className="table">
               <thead>
-                <tr
-                  style={{
-                    textAlign: "left",
-                    color: "#7f8ea3",
-                    fontSize: "11px",
-                  }}
-                >
-                  <th
-                    style={{
-                      padding: "12px",
-                    }}
-                  >
-                    #
-                  </th>
-
-                  <th
-                    style={{
-                      padding: "12px",
-                    }}
-                  >
-                    Category
-                  </th>
-
-                  <th
-                    style={{
-                      padding: "12px",
-                    }}
-                  >
-                    Secondary
-                  </th>
-
-                  <th
-                    style={{
-                      padding: "12px",
-                    }}
-                  >
-                    Team
-                  </th>
-
-                  <th
-                    style={{
-                      padding: "12px",
-                    }}
-                  >
-                    Urgency
-                  </th>
-
-                  <th
-                    style={{
-                      padding: "12px",
-                    }}
-                  >
+                <tr>
+                  <th>#</th>
+                  <th>Category</th>
+                  <th>Team</th>
+                  <th>Urgency</th>
+                  <th>
                     Confidence
                   </th>
-
-                  <th
-                    style={{
-                      padding: "12px",
-                    }}
-                  >
-                    Model
-                  </th>
+                  <th>Model</th>
                 </tr>
               </thead>
 
               <tbody>
                 {batchResults.map(
-                  (item, index) => (
+                  (
+                    item,
+                    index
+                  ) => (
                     <tr
                       key={
                         item.ticket_id ||
                         index
                       }
-                      style={{
-                        borderTop:
-                          "1px solid rgba(148,163,184,0.08)",
-                        fontSize:
-                          "12px",
-                      }}
                     >
-                      <td
-                        style={{
-                          padding:
-                            "14px 12px",
-                          color:
-                            "#64748b",
-                        }}
-                      >
+                      <td className="dim">
                         {index + 1}
                       </td>
 
-                      <td
-                        style={{
-                          padding:
-                            "14px 12px",
-                          fontWeight:
-                            700,
-                        }}
-                      >
-                        {formatLabel(
-                          item.category
-                        )}
-                      </td>
+                      <td>
+                        <span className="cell-icon">
+                          <Icon
+                            name={
+                              item.category
+                            }
+                            size={
+                              16
+                            }
+                          />
 
-                      <td
-                        style={{
-                          padding:
-                            "14px 12px",
-                        }}
-                      >
-                        {formatLabel(
-                          item.secondary_category
-                        )}
-                      </td>
-
-                      <td
-                        style={{
-                          padding:
-                            "14px 12px",
-                        }}
-                      >
-                        {item.team ||
-                          "—"}
-                      </td>
-
-                      <td
-                        style={{
-                          padding:
-                            "14px 12px",
-                        }}
-                      >
-                        <span
-                          className={
-                            item.is_urgent
-                              ? "urgent-text"
-                              : "normal-text"
-                          }
-                        >
-                          {item.is_urgent
-                            ? "Urgent"
-                            : "Normal"}
+                          {formatLabel(
+                            item.category
+                          )}
                         </span>
                       </td>
 
+                      <td>
+                        {item.team}
+                      </td>
+
                       <td
-                        style={{
-                          padding:
-                            "14px 12px",
-                        }}
+                        className={
+                          item.is_urgent
+                            ? "urgent-text"
+                            : "normal-text"
+                        }
                       >
-                        {Math.round(
-                          (item.confidence ||
-                            0) *
-                            100
+                        {item.is_urgent
+                          ? "Urgent"
+                          : "Normal"}
+                      </td>
+
+                      <td>
+                        {pct(
+                          item.confidence
                         )}
                         %
                       </td>
 
-                      <td
-                        style={{
-                          padding:
-                            "14px 12px",
-                        }}
-                      >
+                      <td className="dim">
                         {item.model_version ||
                           MODEL_VERSION}
                       </td>
@@ -1006,13 +1359,9 @@ The driver behaved inappropriately.`}
             </table>
           </div>
         )}
-      </div>
+      </Panel>
     </section>
   );
-
-  // =========================================================
-  // ANALYTICS
-  // =========================================================
 
   const renderAnalytics = () => {
     const {
@@ -1026,146 +1375,63 @@ The driver behaved inappropriately.`}
     return (
       <section>
         <div className="stats-grid">
-          <div className="stat-card">
-            <span>
-              Analyzed Tickets
-            </span>
+          <Stat
+            label="Analyzed Tickets"
+            value={total}
+            note="Current session"
+          />
 
-            <strong>
-              {total}
-            </strong>
+          <Stat
+            label="Urgent Tickets"
+            value={urgentCount}
+            note="Priority routing"
+          />
 
-            <small>
-              Current session batch
-              data
-            </small>
-          </div>
+          <Stat
+            label="Normal Tickets"
+            value={normalCount}
+            note="Standard routing"
+          />
 
-          <div className="stat-card">
-            <span>
-              Urgent Tickets
-            </span>
-
-            <strong>
-              {urgentCount}
-            </strong>
-
-            <small>
-              Priority routing
-              detected
-            </small>
-          </div>
-
-          <div className="stat-card">
-            <span>
-              Normal Tickets
-            </span>
-
-            <strong>
-              {normalCount}
-            </strong>
-
-            <small>
-              Standard support flow
-            </small>
-          </div>
-
-          <div className="stat-card">
-            <span>
-              Average Confidence
-            </span>
-
-            <strong>
-              {avgConfidence}%
-            </strong>
-
-            <small>
-              Decision-score
-              indicator
-            </small>
-          </div>
+          <Stat
+            label="Avg Confidence"
+            value={`${avgConfidence}%`}
+            note="Decision-score indicator"
+          />
         </div>
 
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns:
-              "repeat(auto-fit, minmax(300px, 1fr))",
-            gap: "18px",
-          }}
-        >
-          <div className="panel">
-            <div className="panel-header">
-              <div>
-                <p className="panel-label">
-                  Category Distribution
-                </p>
-
-                <h2>
-                  Ticket classification
-                  summary
-                </h2>
-              </div>
-            </div>
-
+        <div className="two-col">
+          <Panel
+            label="Categories"
+            title="Ticket distribution"
+          >
             {categoryEntries.length ===
             0 ? (
-              <div className="empty-result">
-                <div className="result-icon">
-                  AI
-                </div>
-
-                <h3>
-                  No analytics data yet
-                </h3>
-
-                <p>
-                  Run Batch Analysis
-                  first. RouteIQ will
-                  summarize the
-                  predictions here.
-                </p>
-              </div>
+              <Empty
+                title="No analytics yet"
+                text="Run batch analysis first."
+              />
             ) : (
-              <div
-                style={{
-                  display: "flex",
-                  flexDirection:
-                    "column",
-                  gap: "14px",
-                }}
-              >
+              <div className="bars">
                 {categoryEntries.map(
                   ([
                     category,
                     count,
                   ]) => {
                     const percentage =
-                      Math.round(
-                        (count /
-                          total) *
-                          100
+                      pct(
+                        count /
+                          total
                       );
 
                     return (
                       <div
+                        className="bar-item"
                         key={
                           category
                         }
                       >
-                        <div
-                          style={{
-                            display:
-                              "flex",
-                            justifyContent:
-                              "space-between",
-                            marginBottom:
-                              "7px",
-                            fontSize:
-                              "12px",
-                            gap: "10px",
-                          }}
-                        >
+                        <div className="bar-head">
                           <span>
                             {formatLabel(
                               category
@@ -1181,11 +1447,12 @@ The driver behaved inappropriately.`}
                           </strong>
                         </div>
 
-                        <div className="confidence-track">
+                        <div className="bar-track">
                           <div
-                            className="confidence-fill"
+                            className="bar-fill"
                             style={{
-                              width: `${percentage}%`,
+                              "--bar":
+                                `${percentage}%`,
                             }}
                           />
                         </div>
@@ -1195,297 +1462,185 @@ The driver behaved inappropriately.`}
                 )}
               </div>
             )}
-          </div>
+          </Panel>
 
-          <div className="panel">
-            <div className="panel-header">
-              <div>
-                <p className="panel-label">
-                  Priority Overview
-                </p>
-
-                <h2>
-                  Urgency distribution
-                </h2>
-              </div>
-            </div>
-
+          <Panel
+            label="Priority"
+            title="Urgency overview"
+          >
             {total === 0 ? (
-              <div className="empty-result">
-                <div className="result-icon">
-                  AI
-                </div>
-
-                <h3>
-                  Waiting for
-                  predictions
-                </h3>
-
-                <p>
-                  Batch prediction
-                  results will be used
-                  to calculate urgency
-                  analytics.
-                </p>
-              </div>
+              <Empty
+                title="Waiting for results"
+                text="Batch results will appear here."
+              />
             ) : (
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns:
-                    "repeat(2, minmax(0, 1fr))",
-                  gap: "12px",
-                }}
-              >
-                <div className="prediction-card">
+              <div className="priority-grid">
+                <div className="priority-card urgent-card">
                   <span>
                     Urgent
                   </span>
 
-                  <strong className="urgent-text">
+                  <strong>
                     {urgentCount}
                   </strong>
                 </div>
 
-                <div className="prediction-card">
+                <div className="priority-card normal-card">
                   <span>
                     Normal
                   </span>
 
-                  <strong className="normal-text">
+                  <strong>
                     {normalCount}
                   </strong>
                 </div>
 
-                <div
-                  className="prediction-card"
-                  style={{
-                    gridColumn:
-                      "1 / -1",
-                  }}
-                >
+                <div className="priority-card span-two">
                   <span>
                     Urgent Rate
                   </span>
 
                   <strong>
-                    {Math.round(
-                      (urgentCount /
-                        total) *
-                        100
+                    {pct(
+                      urgentCount /
+                        total
                     )}
                     %
                   </strong>
                 </div>
-
-                <div
-                  className="prediction-card"
-                  style={{
-                    gridColumn:
-                      "1 / -1",
-                  }}
-                >
-                  <span>
-                    Average Confidence
-                  </span>
-
-                  <strong>
-                    {avgConfidence}%
-                  </strong>
-                </div>
               </div>
             )}
-          </div>
+          </Panel>
         </div>
       </section>
     );
   };
 
-  // =========================================================
-  // SYSTEM STATUS
-  // =========================================================
-
-  const renderSystemStatus = () => (
-    <section>
-      <div className="panel">
-        <div className="panel-header">
-          <div>
-            <p className="panel-label">
-              System Status
-            </p>
-
-            <h2>
-              API and model health
-            </h2>
-          </div>
-
-          <button
-            className="analyze-btn"
-            onClick={checkHealth}
-            disabled={healthLoading}
-          >
-            {healthLoading
-              ? "Checking..."
-              : "Run Health Check"}
-          </button>
-        </div>
-
-        {healthError && (
-          <div className="error-message">
-            {healthError}
-          </div>
-        )}
-
-        <div className="stats-grid">
-          <div className="stat-card">
-            <span>
-              API Status
-            </span>
-
-            <strong>
-              {health?.status === "ok"
-                ? "Online"
-                : "Offline"}
-            </strong>
-
-            <small>
-              Public /health endpoint
-            </small>
-          </div>
-
-          <div className="stat-card">
-            <span>
-              Model Version
-            </span>
-
-            <strong>
-              {health?.model_version ||
-                "—"}
-            </strong>
-
-            <small>
-              Active inference model
-            </small>
-          </div>
-
-          <div className="stat-card">
-            <span>
-              Model Loaded
-            </span>
-
-            <strong>
-              {health
-                ? health.model_loaded
-                  ? "Yes"
-                  : "No"
-                : "—"}
-            </strong>
-
-            <small>
-              Runtime model
-              availability
-            </small>
-          </div>
-
-          <div className="stat-card">
-            <span>
-              Authentication
-            </span>
-
-            <strong>
-              Enabled
-            </strong>
-
-            <small>
-              Protected prediction
-              endpoints
-            </small>
-          </div>
-        </div>
-
-        <div
-          style={{
-            marginTop: "18px",
-            display: "grid",
-            gridTemplateColumns:
-              "repeat(auto-fit, minmax(220px, 1fr))",
-            gap: "12px",
-          }}
+  const renderStatus = () => (
+    <Panel
+      label="System"
+      title="API & model health"
+      chip={
+        <button
+          className="secondary-btn"
+          onClick={
+            checkHealth
+          }
+          disabled={
+            healthLoading
+          }
         >
-          <div className="prediction-card">
-            <span>
-              Single Prediction
-            </span>
-
-            <strong>
-              POST /predict
-            </strong>
-          </div>
-
-          <div className="prediction-card">
-            <span>
-              Batch Prediction
-            </span>
-
-            <strong>
-              POST /predict/batch
-            </strong>
-          </div>
-
-          <div className="prediction-card">
-            <span>
-              Async Batch Jobs
-            </span>
-
-            <strong>
-              POST /batch/jobs
-            </strong>
-          </div>
-
-          <div className="prediction-card">
-            <span>
-              Health
-            </span>
-
-            <strong>
-              GET /health
-            </strong>
-          </div>
+          {healthLoading
+            ? "Checking..."
+            : "Refresh"}
+        </button>
+      }
+    >
+      {healthError && (
+        <div className="error-message">
+          {healthError}
         </div>
+      )}
+
+      <div className="stats-grid status-stats">
+        <Stat
+          label="API Status"
+          value={
+            online
+              ? "Online"
+              : "Offline"
+          }
+          note="Public /health"
+        />
+
+        <Stat
+          label="Model"
+          value={
+            health?.model_version ||
+            "—"
+          }
+          note="Active version"
+        />
+
+        <Stat
+          label="Model Loaded"
+          value={
+            health
+              ? health.model_loaded
+                ? "Yes"
+                : "No"
+              : "—"
+          }
+          note="Runtime availability"
+        />
+
+        <Stat
+          label="Authentication"
+          value={
+            API_KEY
+              ? "Enabled"
+              : "No key"
+          }
+          note="Protected endpoints"
+        />
       </div>
-    </section>
+
+      <div className="endpoint-grid">
+        {[
+          [
+            "Single Prediction",
+            "POST /predict",
+          ],
+          [
+            "Batch Prediction",
+            "POST /predict/batch",
+          ],
+          [
+            "Async Jobs",
+            "POST /batch/jobs",
+          ],
+          [
+            "Health",
+            "GET /health",
+          ],
+        ].map(
+          ([
+            label,
+            endpoint,
+          ]) => (
+            <div
+              className="endpoint-card"
+              key={label}
+            >
+              <span>
+                {label}
+              </span>
+
+              <strong>
+                {endpoint}
+              </strong>
+            </div>
+          )
+        )}
+      </div>
+    </Panel>
   );
 
-  // =========================================================
-  // PAGE TITLE
-  // =========================================================
-
-  const pageTitle = () => {
-    if (activeView === "batch") {
-      return "Batch Ticket Analysis";
-    }
-
-    if (activeView === "analytics") {
-      return "Ticket Analytics";
-    }
-
-    if (activeView === "status") {
-      return "System Status";
-    }
-
-    return "Support Routing Dashboard";
-  };
-
-  // =========================================================
-  // UI
-  // =========================================================
+  const title =
+    NAV.find(
+      ([id]) =>
+        id === activeView
+    )?.[2] || "RouteIQ";
 
   return (
     <div className="app-shell">
       <aside className="sidebar">
         <div className="brand">
           <div className="brand-icon">
-            R
+            <Icon
+              name="route"
+              size={21}
+            />
           </div>
 
           <div>
@@ -1500,106 +1655,49 @@ The driver behaved inappropriately.`}
         </div>
 
         <nav className="nav-menu">
-          <button
-            className={`nav-item ${
-              activeView === "dashboard"
-                ? "active"
-                : ""
-            }`}
-            onClick={() =>
-              setActiveView(
-                "dashboard"
-              )
-            }
-          >
-            Dashboard
-          </button>
+          {NAV.map(
+            ([
+              id,
+              label,
+            ]) => (
+              <button
+                key={id}
+                className={`nav-item ${
+                  activeView ===
+                  id
+                    ? "active"
+                    : ""
+                }`}
+                onClick={() =>
+                  setActiveView(
+                    id
+                  )
+                }
+              >
+                <Icon
+                  name={id}
+                  size={17}
+                />
 
-          <button
-            className={`nav-item ${
-              activeView === "single"
-                ? "active"
-                : ""
-            }`}
-            onClick={() =>
-              setActiveView(
-                "single"
-              )
-            }
-          >
-            Single Ticket
-          </button>
-
-          <button
-            className={`nav-item ${
-              activeView === "batch"
-                ? "active"
-                : ""
-            }`}
-            onClick={() =>
-              setActiveView(
-                "batch"
-              )
-            }
-          >
-            Batch Analysis
-          </button>
-
-          <button
-            className={`nav-item ${
-              activeView ===
-              "analytics"
-                ? "active"
-                : ""
-            }`}
-            onClick={() =>
-              setActiveView(
-                "analytics"
-              )
-            }
-          >
-            Analytics
-          </button>
-
-          <button
-            className={`nav-item ${
-              activeView === "status"
-                ? "active"
-                : ""
-            }`}
-            onClick={() =>
-              setActiveView(
-                "status"
-              )
-            }
-          >
-            System Status
-          </button>
+                {label}
+              </button>
+            )
+          )}
         </nav>
 
         <div className="sidebar-footer">
           <div className="api-status">
             <span
-              className="status-dot"
-              style={{
-                background:
-                  health?.status ===
-                  "ok"
-                    ? "#34d399"
-                    : "#f87171",
-
-                boxShadow:
-                  health?.status ===
-                  "ok"
-                    ? "0 0 0 5px rgba(52, 211, 153, 0.1)"
-                    : "0 0 0 5px rgba(248, 113, 113, 0.1)",
-              }}
+              className={`status-dot ${
+                online
+                  ? "on"
+                  : "off"
+              }`}
             />
 
             <div>
               <strong>
-                {health?.status ===
-                "ok"
+                {online
                   ? "API Online"
                   : "API Offline"}
               </strong>
@@ -1615,140 +1713,65 @@ The driver behaved inappropriately.`}
       </aside>
 
       <main className="main-content">
-        <header className="topbar">
-          <div>
-            <p className="eyebrow">
-              TensorForge 2.0 · Phase 2
-            </p>
-
-            <h1>
-              {pageTitle()}
-            </h1>
-
-            <p className="subtitle">
-              Intelligent
-              multilingual ticket
-              classification and team
-              routing
-            </p>
-          </div>
-
-          <div
-            className="topbar-badge"
-            style={{
-              color:
-                health?.status ===
-                "ok"
-                  ? "#a7f3d0"
-                  : "#fecaca",
-
-              borderColor:
-                health?.status ===
-                "ok"
-                  ? "rgba(52,211,153,0.15)"
-                  : "rgba(248,113,113,0.2)",
-
-              background:
-                health?.status ===
-                "ok"
-                  ? "rgba(52,211,153,0.08)"
-                  : "rgba(248,113,113,0.08)",
-            }}
-          >
-            <span
-              className="pulse"
-              style={{
-                background:
-                  health?.status ===
-                  "ok"
-                    ? "#34d399"
-                    : "#f87171",
-              }}
-            />
-
-            {health?.status === "ok"
-              ? "Live System"
-              : "API Offline"}
-          </div>
-        </header>
-
         {activeView !==
-          "analytics" &&
-          activeView !==
-            "status" && (
-            <section className="stats-grid">
-              <div className="stat-card">
-                <span>
-                  Category Model
-                </span>
+          "dashboard" && (
+          <header className="topbar">
+            <div>
+              <p className="eyebrow">
+                TensorForge 2.0
+              </p>
 
-                <strong>
-                  88.1%
-                </strong>
+              <h1>
+                {title}
+              </h1>
 
-                <small>
-                  Validation accuracy
-                </small>
-              </div>
+              <p className="subtitle">
+                Multilingual customer
+                support classification
+                and team routing
+              </p>
+            </div>
 
-              <div className="stat-card">
-                <span>
-                  Primary Categories
-                </span>
+            <div
+              className={`live-badge ${
+                online
+                  ? "on"
+                  : "off"
+              }`}
+            >
+              <span
+                className={`status-dot ${
+                  online
+                    ? "on"
+                    : "off"
+                }`}
+              />
 
-                <strong>
-                  11
-                </strong>
+              {online
+                ? "Live System"
+                : "API Offline"}
+            </div>
+          </header>
+        )}
 
-                <small>
-                  Automated routing
-                  classes
-                </small>
-              </div>
-
-              <div className="stat-card">
-                <span>
-                  Urgency Detection
-                </span>
-
-                <strong>
-                  97.1%
-                </strong>
-
-                <small>
-                  Validation accuracy
-                </small>
-              </div>
-
-              <div className="stat-card">
-                <span>
-                  API
-                </span>
-
-                <strong>
-                  {health?.status ===
-                  "ok"
-                    ? "Healthy"
-                    : "Offline"}
-                </strong>
-
-                <small>
-                  FastAPI inference
-                  service
-                </small>
-              </div>
-            </section>
-          )}
-
-        {activeView === "batch"
-          ? renderBatchAnalysis()
-          : activeView ===
+        <div
+          className="view"
+          key={activeView}
+        >
+          {activeView ===
+          "dashboard"
+            ? renderDashboard()
+            : activeView ===
+              "single"
+            ? renderSingle()
+            : activeView ===
+              "batch"
+            ? renderBatch()
+            : activeView ===
               "analytics"
-          ? renderAnalytics()
-          : activeView ===
-              "status"
-          ? renderSystemStatus()
-          : renderSingleTicket()}
+            ? renderAnalytics()
+            : renderStatus()}
+        </div>
       </main>
     </div>
   );

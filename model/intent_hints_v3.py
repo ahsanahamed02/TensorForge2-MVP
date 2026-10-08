@@ -201,46 +201,112 @@ def add_intent_hints(text):
         r"\bfare\b",
     ]
 
+    spam_patterns = [
+        r"\bcongratulations\b",
+        r"\byou have won\b",
+        r"\bwon a prize\b",
+        r"\bcash prize\b",
+        r"\bfree prize\b",
+        r"\bfree gift\b",
+        r"\bclaim now\b",
+        r"\bclaim your\b",
+        r"\bclick here\b",
+        r"\bclick now\b",
+        r"\bwinner\b",
+        r"\blimited offer\b",
+        r"\bfree reward\b",
+        r"\bfree cash\b",
+        r"\bwin cash\b",
+        r"\bwin a prize\b",
+        r"\bprize winner\b",
+        r"\bspecial offer\b",
+        r"\bexclusive offer\b",
+        r"\bact now\b",
+        r"\burgent offer\b",
+    ]
+
     def matches(patterns):
         return any(
-            re.search(pattern, lower, re.IGNORECASE)
+            re.search(
+                pattern,
+                lower,
+                re.IGNORECASE
+            )
             for pattern in patterns
         )
 
     if matches(order_issue_patterns):
-        hints.append("__ORDER_ISSUE_HINT")
+        hints.append(
+            "__ORDER_ISSUE_HINT"
+        )
 
     if matches(payment_patterns):
-        hints.append("__PAYMENT_HINT")
+        hints.append(
+            "__PAYMENT_HINT"
+        )
 
     if matches(delivery_patterns):
-        hints.append("__DELIVERY_HINT")
+        hints.append(
+            "__DELIVERY_HINT"
+        )
 
     if matches(technical_patterns):
-        hints.append("__TECHNICAL_HINT")
+        hints.append(
+            "__TECHNICAL_HINT"
+        )
 
     if matches(food_quality_patterns):
-        hints.append("__FOOD_QUALITY_HINT")
+        hints.append(
+            "__FOOD_QUALITY_HINT"
+        )
 
     if matches(lost_item_patterns):
-        hints.append("__LOST_ITEM_HINT")
+        hints.append(
+            "__LOST_ITEM_HINT"
+        )
 
     if matches(safety_patterns):
-        hints.append("__SAFETY_HINT")
+        hints.append(
+            "__SAFETY_HINT"
+        )
 
     if matches(account_patterns):
-        hints.append("__ACCOUNT_HINT")
+        hints.append(
+            "__ACCOUNT_HINT"
+        )
 
     if matches(ride_patterns):
-        hints.append("__RIDE_HINT")
+        hints.append(
+            "__RIDE_HINT"
+        )
 
-    if "__ORDER_ISSUE_HINT" in hints and "__PAYMENT_HINT" in hints:
-        hints.append("__ORDER_AND_PAYMENT")
+    if matches(spam_patterns):
+        hints.append(
+            "__SPAM_HINT"
+        )
 
-    if "__ORDER_ISSUE_HINT" in hints and "__DELIVERY_HINT" not in hints:
-        hints.append("__ORDER_CONTENT_PROBLEM")
+    if (
+        "__ORDER_ISSUE_HINT" in hints
+        and "__PAYMENT_HINT" in hints
+    ):
+        hints.append(
+            "__ORDER_AND_PAYMENT"
+        )
 
-    if "__DELIVERY_HINT" in hints and "__ORDER_ISSUE_HINT" not in hints:
-        hints.append("__PURE_DELIVERY_PROBLEM")
+    if (
+        "__ORDER_ISSUE_HINT" in hints
+        and "__DELIVERY_HINT" not in hints
+    ):
+        hints.append(
+            "__ORDER_CONTENT_PROBLEM"
+        )
+
+    if (
+        "__DELIVERY_HINT" in hints
+        and "__ORDER_ISSUE_HINT" not in hints
+    ):
+        hints.append(
+            "__PURE_DELIVERY_PROBLEM"
+        )
 
     return " ".join(hints)
