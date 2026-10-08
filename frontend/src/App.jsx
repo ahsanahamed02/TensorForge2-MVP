@@ -1,18 +1,22 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import "./App.css";
+
+const API_URL = (
+  import.meta.env.VITE_API_URL || "http://localhost:8000"
+).replace(/\/$/, "");
+
+const API_KEY = import.meta.env.VITE_API_KEY || "";
+
+const MODEL_VERSION = "v1.2";
+const MAX_BATCH_SIZE = 100;
 
 function App() {
   const [activeView, setActiveView] = useState("dashboard");
 
   // =========================================================
-  // CONFIG
-  // =========================================================
-  const API_URL = "http://localhost:8000";
-  const API_KEY = "test123";
-
-  // =========================================================
   // HEALTH
   // =========================================================
+
   const [health, setHealth] = useState(null);
   const [healthLoading, setHealthLoading] = useState(false);
   const [healthError, setHealthError] = useState("");
@@ -20,6 +24,7 @@ function App() {
   // =========================================================
   // SINGLE TICKET
   // =========================================================
+
   const [channel, setChannel] = useState("email");
   const [subject, setSubject] = useState("");
   const [text, setText] = useState("");
@@ -31,6 +36,7 @@ function App() {
   // =========================================================
   // BATCH
   // =========================================================
+
   const [batchText, setBatchText] = useState("");
   const [batchResults, setBatchResults] = useState([]);
   const [batchLoading, setBatchLoading] = useState(false);
@@ -39,17 +45,54 @@ function App() {
   // =========================================================
   // HELPERS
   // =========================================================
-  const formatLabel = (value) => {
-    if (!value) return "None";
 
-    return value
+  const formatLabel = (value) => {
+    if (!value) {
+      return "None";
+    }
+
+    return String(value)
       .replaceAll("_", " ")
       .replace(/\b\w/g, (letter) => letter.toUpperCase());
+  };
+
+  const getHeaders = () => {
+    const headers = {
+      "Content-Type": "application/json",
+    };
+
+    if (API_KEY) {
+      headers["X-API-Key"] = API_KEY;
+    }
+
+    return headers;
+  };
+
+  const getErrorMessage = async (
+    response,
+    fallback = "Request failed."
+  ) => {
+    try {
+      const data = await response.json();
+
+      if (typeof data?.detail === "string") {
+        return data.detail;
+      }
+
+      return (
+        data?.error?.message ||
+        data?.detail?.message ||
+        fallback
+      );
+    } catch {
+      return fallback;
+    }
   };
 
   // =========================================================
   // HEALTH CHECK
   // =========================================================
+
   const checkHealth = async () => {
     setHealthLoading(true);
     setHealthError("");
@@ -58,7 +101,7 @@ function App() {
       const response = await fetch(`${API_URL}/health`);
 
       if (!response.ok) {
-        throw new Error("Health check failed");
+        throw new Error("Health check failed.");
       }
 
       const data = await response.json();
@@ -75,7 +118,6 @@ function App() {
     }
   };
 
-  // Automatically check backend when page opens
   useEffect(() => {
     checkHealth();
   }, []);
@@ -83,6 +125,7 @@ function App() {
   // =========================================================
   // SINGLE TICKET PREDICTION
   // =========================================================
+
   const analyzeTicket = async () => {
     if (!text.trim()) {
       setError("Ticket message is required.");
@@ -99,58 +142,73 @@ function App() {
         {
           method: "POST",
 
-          headers: {
-            "Content-Type": "application/json",
-            "X-API-Key": API_KEY,
-          },
+          headers: getHeaders(),
 
           body: JSON.stringify({
             ticket_id: `WEB-${Date.now()}`,
             channel,
-            subject,
-            text,
+            subject: subject.trim(),
+            text: text.trim(),
           }),
         }
       );
 
-      const data = await response.json();
-
       if (!response.ok) {
-        throw new Error(
-          data?.error?.message ||
-            data?.detail?.message ||
-            "Prediction failed"
+        const message = await getErrorMessage(
+          response,
+          "Prediction failed."
         );
+
+        throw new Error(message);
       }
+
+      const data = await response.json();
 
       setResult(data);
     } catch (err) {
       setError(
-        err.message || "Unable to connect to API."
+        err.message ||
+          "Unable to connect to API."
       );
     } finally {
       setLoading(false);
     }
   };
 
-  // =========================================================
-  // BATCH PREDICTION
-  // =========================================================
-  const analyzeBatch = async () => {
-    if (!batchText.trim()) {
-      setBatchError("Enter at least one ticket.");
-      return;
-    }
+  const clearSingle = () => {
+    setSubject("");
+    setText("");
+    setResult(null);
+    setError("");
+  };
 
-    const lines = batchText
+  // =========================================================
+  // BATCH
+  // =========================================================
+
+  const batchLines = useMemo(() => {
+    return batchText
       .split("\n")
       .map((line) => line.trim())
       .filter(Boolean);
+  }, [batchText]);
 
-    if (lines.length > 100) {
+  const batchCount = batchLines.length;
+
+  const analyzeBatch = async () => {
+    if (batchCount === 0) {
       setBatchError(
-        "Maximum 100 tickets are allowed for synchronous batch analysis."
+        "Enter at least one ticket."
       );
+
+      return;
+    }
+
+    if (batchCount > MAX_BATCH_SIZE) {
+      setBatchError(
+        `Maximum ${MAX_BATCH_SIZE} tickets are allowed for synchronous batch analysis.`
+      );
+
       return;
     }
 
@@ -161,7 +219,7 @@ function App() {
     try {
       const timestamp = Date.now();
 
-      const tickets = lines.map(
+      const tickets = batchLines.map(
         (line, index) => ({
           ticket_id: `BATCH-${timestamp}-${index + 1}`,
           channel: "email",
@@ -175,10 +233,7 @@ function App() {
         {
           method: "POST",
 
-          headers: {
-            "Content-Type": "application/json",
-            "X-API-Key": API_KEY,
-          },
+          headers: getHeaders(),
 
           body: JSON.stringify({
             tickets,
@@ -186,15 +241,16 @@ function App() {
         }
       );
 
-      const data = await response.json();
-
       if (!response.ok) {
-        throw new Error(
-          data?.error?.message ||
-            data?.detail?.message ||
-            "Batch prediction failed"
+        const message = await getErrorMessage(
+          response,
+          "Batch prediction failed."
         );
+
+        throw new Error(message);
       }
+
+      const data = await response.json();
 
       if (Array.isArray(data)) {
         setBatchResults(data);
@@ -221,20 +277,72 @@ function App() {
     setBatchError("");
   };
 
+  // =========================================================
+  // VALUES
+  // =========================================================
+
   const confidencePercent = result
     ? Math.round(
         (result.confidence || 0) * 100
       )
     : 0;
 
-  const batchCount = batchText
-    .split("\n")
-    .map((line) => line.trim())
-    .filter(Boolean).length;
+  const analytics = useMemo(() => {
+    const total = batchResults.length;
+
+    const urgentCount =
+      batchResults.filter(
+        (item) => item.is_urgent
+      ).length;
+
+    const normalCount =
+      total - urgentCount;
+
+    const avgConfidence =
+      total > 0
+        ? Math.round(
+            (batchResults.reduce(
+              (sum, item) =>
+                sum +
+                (item.confidence || 0),
+              0
+            ) /
+              total) *
+              100
+          )
+        : 0;
+
+    const categoryCounts = {};
+
+    batchResults.forEach((item) => {
+      const category =
+        item.category || "unknown";
+
+      categoryCounts[category] =
+        (categoryCounts[category] || 0) +
+        1;
+    });
+
+    const categoryEntries =
+      Object.entries(
+        categoryCounts
+      ).sort(
+        (a, b) => b[1] - a[1]
+      );
+
+    return {
+      total,
+      urgentCount,
+      normalCount,
+      avgConfidence,
+      categoryEntries,
+    };
+  }, [batchResults]);
 
   // =========================================================
   // SINGLE TICKET UI
   // =========================================================
+
   const renderSingleTicket = () => (
     <>
       <section className="workspace-grid">
@@ -328,15 +436,35 @@ function App() {
               </small>
             </div>
 
-            <button
-              className="analyze-btn"
-              onClick={analyzeTicket}
-              disabled={loading}
+            <div
+              style={{
+                display: "flex",
+                gap: "10px",
+                flexWrap: "wrap",
+              }}
             >
-              {loading
-                ? "Analyzing..."
-                : "Analyze Ticket"}
-            </button>
+              <button
+                className="nav-item"
+                onClick={clearSingle}
+                type="button"
+                disabled={loading}
+              >
+                Clear
+              </button>
+
+              <button
+                className="analyze-btn"
+                onClick={analyzeTicket}
+                disabled={
+                  loading ||
+                  !text.trim()
+                }
+              >
+                {loading
+                  ? "Analyzing..."
+                  : "Analyze Ticket"}
+              </button>
+            </div>
           </div>
         </div>
 
@@ -347,8 +475,17 @@ function App() {
                 Prediction Output
               </p>
 
-              <h2>Routing decision</h2>
+              <h2>
+                Routing decision
+              </h2>
             </div>
+
+            {result?.model_version && (
+              <span className="panel-chip">
+                Model{" "}
+                {result.model_version}
+              </span>
+            )}
           </div>
 
           {!result ? (
@@ -365,7 +502,7 @@ function App() {
 
               <p>
                 {loading
-                  ? "RouteIQ is processing the support ticket using the trained ML pipeline."
+                  ? "RouteIQ is processing the ticket using the trained machine-learning pipeline."
                   : "Enter a ticket and run the model to view category, urgency, confidence and assigned team."}
               </p>
             </div>
@@ -395,7 +532,9 @@ function App() {
                 </div>
 
                 <div className="prediction-card">
-                  <span>Urgency</span>
+                  <span>
+                    Urgency
+                  </span>
 
                   <strong
                     className={
@@ -429,7 +568,7 @@ function App() {
 
                   <strong>
                     {result.model_version ||
-                      "v1.0"}
+                      MODEL_VERSION}
                   </strong>
                 </div>
               </div>
@@ -437,7 +576,7 @@ function App() {
               <div className="confidence-box">
                 <div className="confidence-header">
                   <span>
-                    Model Confidence
+                    Confidence Indicator
                   </span>
 
                   <strong>
@@ -456,7 +595,8 @@ function App() {
 
                 <small>
                   Decision-score based
-                  confidence indicator
+                  indicator; not a calibrated
+                  probability.
                 </small>
               </div>
 
@@ -472,12 +612,19 @@ function App() {
           <div className="result-metadata">
             <div>
               <span>Endpoint</span>
-              <strong>/predict</strong>
+              <strong>
+                /predict
+              </strong>
             </div>
 
             <div>
               <span>Model</span>
-              <strong>v1.0</strong>
+
+              <strong>
+                {result?.model_version ||
+                  health?.model_version ||
+                  MODEL_VERSION}
+              </strong>
             </div>
           </div>
         </div>
@@ -489,7 +636,9 @@ function App() {
             Pipeline
           </p>
 
-          <h3>Inference workflow</h3>
+          <h3>
+            Inference workflow
+          </h3>
 
           <div className="pipeline">
             <span>Ticket Input</span>
@@ -508,14 +657,16 @@ function App() {
           </p>
 
           <h3>
-            Production ready architecture
+            Competition-ready
+            architecture
           </h3>
 
           <p className="compact-text">
-            React frontend connected to
-            a FastAPI inference service
-            with authenticated prediction
-            and batch-processing endpoints.
+            React frontend connected
+            to a FastAPI inference
+            service with authenticated
+            prediction and batch
+            endpoints.
           </p>
         </div>
       </section>
@@ -525,6 +676,7 @@ function App() {
   // =========================================================
   // BATCH UI
   // =========================================================
+
   const renderBatchAnalysis = () => (
     <section>
       <div className="panel">
@@ -535,8 +687,8 @@ function App() {
             </p>
 
             <h2>
-              Analyze multiple support
-              tickets
+              Analyze multiple
+              support tickets
             </h2>
           </div>
 
@@ -547,7 +699,8 @@ function App() {
 
         <div className="form-group">
           <label>
-            Tickets — one ticket per line
+            Tickets — one ticket per
+            line
           </label>
 
           <textarea
@@ -560,7 +713,7 @@ function App() {
             }
             placeholder={`I was charged twice and need a refund.
 My food order has not arrived yet.
-I cannot login to the mobile application.
+Connection is fine but the food menu is not loading.
 The driver behaved inappropriately.`}
           />
         </div>
@@ -582,8 +735,9 @@ The driver behaved inappropriately.`}
             </span>
 
             <small>
-              Maximum 100 tickets per
-              request
+              Maximum{" "}
+              {MAX_BATCH_SIZE} tickets
+              per synchronous request
             </small>
           </div>
 
@@ -591,12 +745,14 @@ The driver behaved inappropriately.`}
             style={{
               display: "flex",
               gap: "10px",
+              flexWrap: "wrap",
             }}
           >
             <button
               className="nav-item"
               onClick={clearBatch}
               type="button"
+              disabled={batchLoading}
             >
               Clear
             </button>
@@ -604,7 +760,10 @@ The driver behaved inappropriately.`}
             <button
               className="analyze-btn"
               onClick={analyzeBatch}
-              disabled={batchLoading}
+              disabled={
+                batchLoading ||
+                batchCount === 0
+              }
             >
               {batchLoading
                 ? "Analyzing Batch..."
@@ -652,9 +811,10 @@ The driver behaved inappropriately.`}
             </h3>
 
             <p>
-              Enter multiple tickets above
-              and run batch analysis to view
-              their routing decisions.
+              Enter multiple tickets
+              above and run batch
+              analysis to view routing
+              decisions.
             </p>
           </div>
         ) : (
@@ -668,7 +828,7 @@ The driver behaved inappropriately.`}
                 width: "100%",
                 borderCollapse:
                   "collapse",
-                minWidth: "800px",
+                minWidth: "850px",
               }}
             >
               <thead>
@@ -725,6 +885,14 @@ The driver behaved inappropriately.`}
                     }}
                   >
                     Confidence
+                  </th>
+
+                  <th
+                    style={{
+                      padding: "12px",
+                    }}
+                  >
+                    Model
                   </th>
                 </tr>
               </thead>
@@ -821,6 +989,16 @@ The driver behaved inappropriately.`}
                         )}
                         %
                       </td>
+
+                      <td
+                        style={{
+                          padding:
+                            "14px 12px",
+                        }}
+                      >
+                        {item.model_version ||
+                          MODEL_VERSION}
+                      </td>
                     </tr>
                   )
                 )}
@@ -833,56 +1011,17 @@ The driver behaved inappropriately.`}
   );
 
   // =========================================================
-  // ANALYTICS UI
+  // ANALYTICS
   // =========================================================
+
   const renderAnalytics = () => {
-    const total =
-      batchResults.length;
-
-    const urgentCount =
-      batchResults.filter(
-        (item) => item.is_urgent
-      ).length;
-
-    const normalCount =
-      total - urgentCount;
-
-    const avgConfidence =
-      total > 0
-        ? Math.round(
-            (batchResults.reduce(
-              (sum, item) =>
-                sum +
-                (item.confidence ||
-                  0),
-              0
-            ) /
-              total) *
-              100
-          )
-        : 0;
-
-    const categoryCounts = {};
-
-    batchResults.forEach(
-      (item) => {
-        const category =
-          item.category ||
-          "unknown";
-
-        categoryCounts[category] =
-          (categoryCounts[
-            category
-          ] || 0) + 1;
-      }
-    );
-
-    const categoryEntries =
-      Object.entries(
-        categoryCounts
-      ).sort(
-        (a, b) => b[1] - a[1]
-      );
+    const {
+      total,
+      urgentCount,
+      normalCount,
+      avgConfidence,
+      categoryEntries,
+    } = analytics;
 
     return (
       <section>
@@ -891,9 +1030,14 @@ The driver behaved inappropriately.`}
             <span>
               Analyzed Tickets
             </span>
-            <strong>{total}</strong>
+
+            <strong>
+              {total}
+            </strong>
+
             <small>
-              Current session batch data
+              Current session batch
+              data
             </small>
           </div>
 
@@ -901,11 +1045,14 @@ The driver behaved inappropriately.`}
             <span>
               Urgent Tickets
             </span>
+
             <strong>
               {urgentCount}
             </strong>
+
             <small>
-              Priority routing detected
+              Priority routing
+              detected
             </small>
           </div>
 
@@ -913,9 +1060,11 @@ The driver behaved inappropriately.`}
             <span>
               Normal Tickets
             </span>
+
             <strong>
               {normalCount}
             </strong>
+
             <small>
               Standard support flow
             </small>
@@ -925,11 +1074,14 @@ The driver behaved inappropriately.`}
             <span>
               Average Confidence
             </span>
+
             <strong>
               {avgConfidence}%
             </strong>
+
             <small>
-              Decision-score indicator
+              Decision-score
+              indicator
             </small>
           </div>
         </div>
@@ -938,7 +1090,7 @@ The driver behaved inappropriately.`}
           style={{
             display: "grid",
             gridTemplateColumns:
-              "minmax(0, 1.2fr) minmax(300px, 0.8fr)",
+              "repeat(auto-fit, minmax(300px, 1fr))",
             gap: "18px",
           }}
         >
@@ -968,9 +1120,10 @@ The driver behaved inappropriately.`}
                 </h3>
 
                 <p>
-                  Run Batch Analysis first.
-                  RouteIQ will summarize
-                  the predictions here.
+                  Run Batch Analysis
+                  first. RouteIQ will
+                  summarize the
+                  predictions here.
                 </p>
               </div>
             ) : (
@@ -1010,6 +1163,7 @@ The driver behaved inappropriately.`}
                               "7px",
                             fontSize:
                               "12px",
+                            gap: "10px",
                           }}
                         >
                           <span>
@@ -1063,13 +1217,15 @@ The driver behaved inappropriately.`}
                 </div>
 
                 <h3>
-                  Waiting for predictions
+                  Waiting for
+                  predictions
                 </h3>
 
                 <p>
-                  Batch prediction results
-                  will be used to calculate
-                  urgency analytics.
+                  Batch prediction
+                  results will be used
+                  to calculate urgency
+                  analytics.
                 </p>
               </div>
             ) : (
@@ -1077,7 +1233,7 @@ The driver behaved inappropriately.`}
                 style={{
                   display: "grid",
                   gridTemplateColumns:
-                    "repeat(2, 1fr)",
+                    "repeat(2, minmax(0, 1fr))",
                   gap: "12px",
                 }}
               >
@@ -1146,8 +1302,9 @@ The driver behaved inappropriately.`}
   };
 
   // =========================================================
-  // SYSTEM STATUS UI
+  // SYSTEM STATUS
   // =========================================================
+
   const renderSystemStatus = () => (
     <section>
       <div className="panel">
@@ -1186,8 +1343,8 @@ The driver behaved inappropriately.`}
             </span>
 
             <strong>
-              {health
-                ? health.status
+              {health?.status === "ok"
+                ? "Online"
                 : "Offline"}
             </strong>
 
@@ -1225,7 +1382,8 @@ The driver behaved inappropriately.`}
             </strong>
 
             <small>
-              Runtime model availability
+              Runtime model
+              availability
             </small>
           </div>
 
@@ -1250,7 +1408,7 @@ The driver behaved inappropriately.`}
             marginTop: "18px",
             display: "grid",
             gridTemplateColumns:
-              "repeat(2, minmax(0, 1fr))",
+              "repeat(auto-fit, minmax(220px, 1fr))",
             gap: "12px",
           }}
         >
@@ -1285,7 +1443,9 @@ The driver behaved inappropriately.`}
           </div>
 
           <div className="prediction-card">
-            <span>Health</span>
+            <span>
+              Health
+            </span>
 
             <strong>
               GET /health
@@ -1299,6 +1459,7 @@ The driver behaved inappropriately.`}
   // =========================================================
   // PAGE TITLE
   // =========================================================
+
   const pageTitle = () => {
     if (activeView === "batch") {
       return "Batch Ticket Analysis";
@@ -1316,8 +1477,9 @@ The driver behaved inappropriately.`}
   };
 
   // =========================================================
-  // MAIN UI
+  // UI
   // =========================================================
+
   return (
     <div className="app-shell">
       <aside className="sidebar">
@@ -1327,7 +1489,10 @@ The driver behaved inappropriately.`}
           </div>
 
           <div>
-            <h2>RouteIQ</h2>
+            <h2>
+              RouteIQ
+            </h2>
+
             <p>
               Support Intelligence
             </p>
@@ -1357,7 +1522,9 @@ The driver behaved inappropriately.`}
                 : ""
             }`}
             onClick={() =>
-              setActiveView("single")
+              setActiveView(
+                "single"
+              )
             }
           >
             Single Ticket
@@ -1370,7 +1537,9 @@ The driver behaved inappropriately.`}
                 : ""
             }`}
             onClick={() =>
-              setActiveView("batch")
+              setActiveView(
+                "batch"
+              )
             }
           >
             Batch Analysis
@@ -1378,7 +1547,8 @@ The driver behaved inappropriately.`}
 
           <button
             className={`nav-item ${
-              activeView === "analytics"
+              activeView ===
+              "analytics"
                 ? "active"
                 : ""
             }`}
@@ -1398,14 +1568,15 @@ The driver behaved inappropriately.`}
                 : ""
             }`}
             onClick={() =>
-              setActiveView("status")
+              setActiveView(
+                "status"
+              )
             }
           >
             System Status
           </button>
         </nav>
 
-        {/* REAL API STATUS */}
         <div className="sidebar-footer">
           <div className="api-status">
             <span
@@ -1455,9 +1626,10 @@ The driver behaved inappropriately.`}
             </h1>
 
             <p className="subtitle">
-              Intelligent multilingual
-              ticket classification and
-              team routing
+              Intelligent
+              multilingual ticket
+              classification and team
+              routing
             </p>
           </div>
 
@@ -1465,17 +1637,20 @@ The driver behaved inappropriately.`}
             className="topbar-badge"
             style={{
               color:
-                health?.status === "ok"
+                health?.status ===
+                "ok"
                   ? "#a7f3d0"
                   : "#fecaca",
 
               borderColor:
-                health?.status === "ok"
+                health?.status ===
+                "ok"
                   ? "rgba(52,211,153,0.15)"
                   : "rgba(248,113,113,0.2)",
 
               background:
-                health?.status === "ok"
+                health?.status ===
+                "ok"
                   ? "rgba(52,211,153,0.08)"
                   : "rgba(248,113,113,0.08)",
             }}
@@ -1499,17 +1674,20 @@ The driver behaved inappropriately.`}
 
         {activeView !==
           "analytics" &&
-          activeView !== "status" && (
+          activeView !==
+            "status" && (
             <section className="stats-grid">
               <div className="stat-card">
-                <span>Model</span>
+                <span>
+                  Category Model
+                </span>
 
                 <strong>
-                  Linear SVM
+                  88.1%
                 </strong>
 
                 <small>
-                  Hybrid TF-IDF pipeline
+                  Validation accuracy
                 </small>
               </div>
 
@@ -1518,7 +1696,9 @@ The driver behaved inappropriately.`}
                   Primary Categories
                 </span>
 
-                <strong>11</strong>
+                <strong>
+                  11
+                </strong>
 
                 <small>
                   Automated routing
@@ -1541,7 +1721,9 @@ The driver behaved inappropriately.`}
               </div>
 
               <div className="stat-card">
-                <span>API</span>
+                <span>
+                  API
+                </span>
 
                 <strong>
                   {health?.status ===
@@ -1563,7 +1745,8 @@ The driver behaved inappropriately.`}
           : activeView ===
               "analytics"
           ? renderAnalytics()
-          : activeView === "status"
+          : activeView ===
+              "status"
           ? renderSystemStatus()
           : renderSingleTicket()}
       </main>
