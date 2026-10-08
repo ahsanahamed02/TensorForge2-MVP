@@ -1,11 +1,16 @@
 import { useEffect, useMemo, useState } from "react";
 import "./App.css";
 
-const API_URL = (
-  import.meta.env.VITE_API_URL || "http://localhost:8000"
-).replace(/\/$/, "");
+const API_URL = import.meta.env.PROD
+  ? "/api"
+  : (
+      import.meta.env.VITE_API_URL ||
+      "http://localhost:8000"
+    ).replace(/\/$/, "");
 
-const API_KEY = import.meta.env.VITE_API_KEY || "";
+const API_KEY = import.meta.env.DEV
+  ? import.meta.env.VITE_API_KEY || ""
+  : "";
 
 const MODEL_VERSION = "v1.2";
 const MAX_BATCH_SIZE = 100;
@@ -1576,12 +1581,8 @@ The driver behaved inappropriately.`}
 
         <Stat
           label="Authentication"
-          value={
-            API_KEY
-              ? "Enabled"
-              : "No key"
-          }
-          note="Protected endpoints"
+          value="Enabled"
+          note="Server-side protected endpoints"
         />
       </div>
 
