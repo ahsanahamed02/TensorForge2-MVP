@@ -248,6 +248,7 @@ function ConfidenceRing({ value = 0 }) {
 }
 
 function App() {
+  const [showEvaluation, setShowEvaluation] = useState(false);
   const [
     activeView,
     setActiveView,
@@ -551,6 +552,26 @@ function App() {
         total -
         urgentCount;
 
+      const manualReviewCount =
+        batchResults.filter((item) =>
+          needsManualReview(item.confidence)
+        ).length;
+
+      const highConfidenceCount =
+        batchResults.filter((item) =>
+          getConfidenceBand(item.confidence) === "High"
+        ).length;
+
+      const mediumConfidenceCount =
+        batchResults.filter((item) =>
+          getConfidenceBand(item.confidence) === "Medium"
+        ).length;
+
+      const lowConfidenceCount =
+        batchResults.filter((item) =>
+          getConfidenceBand(item.confidence) === "Low"
+        ).length;
+
       const avgConfidence =
         total > 0
           ? pct(
@@ -586,6 +607,10 @@ function App() {
         total,
         urgentCount,
         normalCount,
+        manualReviewCount,
+        highConfidenceCount,
+        mediumConfidenceCount,
+        lowConfidenceCount,
         avgConfidence,
 
         categoryEntries:
@@ -670,13 +695,13 @@ function App() {
             <div>
               <span>Customer ticket</span>
               <strong>
-                “My order is late”
+                ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œMy order is lateÃƒÂ¢Ã¢â€šÂ¬Ã‚Â
               </strong>
             </div>
           </div>
 
           <div className="flow-arrow">
-            ↓
+            ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬Å“
           </div>
 
           <div className="floating-card fc-2">
@@ -697,7 +722,7 @@ function App() {
           </div>
 
           <div className="flow-arrow">
-            ↓
+            ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬Å“
           </div>
 
           <div className="floating-card fc-3">
@@ -722,14 +747,14 @@ function App() {
       <div className="stats-grid">
         <Stat
           i={0}
-          label="Category accuracy"
+          label="Category validation score"
           value="88.1%"
           note="Validation-tuned score"
         />
 
         <Stat
           i={1}
-          label="Urgency accuracy"
+          label="Urgency validation accuracy"
           value="97.1%"
           note="Validation accuracy"
         />
@@ -751,6 +776,15 @@ function App() {
           }
           note="Live backend health"
         />
+      </div>
+
+      <div className="evaluation-link-wrap">
+        <button
+          className="evaluation-link"
+          onClick={() => setShowEvaluation(true)}
+        >
+          View evaluation evidence
+        </button>
       </div>
 
       <div className="two-col">
@@ -828,9 +862,7 @@ function App() {
               "English",
               "Sinhala",
               "Tamil",
-              "Singlish",
-              "Tanglish",
-              "Mixed",
+              "Romanized & Mixed Text",
             ].map((language) => (
               <span key={language}>
                 {language}
@@ -839,9 +871,7 @@ function App() {
           </div>
 
           <p className="language-note">
-            Built for multilingual
-            customer support text
-            common in Sri Lanka.
+            Supports multilingual customer support text common in Sri Lanka.
           </p>
         </Panel>
       </div>
@@ -1144,7 +1174,7 @@ function App() {
 
                   <strong>
                     {result.team ||
-                      "—"}
+                      "ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â"}
                   </strong>
                 </div>
 
@@ -1235,9 +1265,9 @@ function App() {
                   e.target.value
                 )
               }
-              placeholder={`I was charged twice and need a refund.
-My food order has not arrived yet.
-Connection is fine but the food menu is not loading.
+              placeholder={`Payment was charged twice.
+Order innum deliver aagala.
+App crashes after the latest update.
 The driver behaved inappropriately.`}
             />
           </div>
@@ -1328,8 +1358,64 @@ The driver behaved inappropriately.`}
             text="Run batch analysis to view categories, urgency and support-team routing."
           />
         ) : (
-          <div className="table-wrap">
-            <table className="table">
+          <>
+            <div
+              className="stats-grid compact-stats"
+              style={{ marginBottom: 18 }}
+            >
+              <Stat
+                i={0}
+                label="Predictions"
+                value={batchResults.length}
+                note="Current batch"
+              />
+
+              <Stat
+                i={1}
+                label="Manual Review"
+                value={
+                  batchResults.filter((item) =>
+                    needsManualReview(item.confidence)
+                  ).length
+                }
+                note="Confidence below 30%"
+              />
+
+              <Stat
+                i={2}
+                label="High Confidence"
+                value={
+                  batchResults.filter((item) =>
+                    getConfidenceBand(item.confidence) === "High"
+                  ).length
+                }
+                note="70% and above"
+              />
+
+              <Stat
+                i={3}
+                label="Avg Confidence"
+                value={`${pct(
+                  batchResults.reduce(
+                    (sum, item) =>
+                      sum + (item.confidence || 0),
+                    0
+                  ) / batchResults.length
+                )}%`}
+                note="Decision-score indicator"
+              />
+            </div>
+
+            <p
+              className="confidence-note"
+              style={{ marginBottom: 14 }}
+            >
+              Confidence bands: High 70%+, Medium 30ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Å“69%, Low below 30%.
+              Low-confidence predictions are flagged for manual review.
+            </p>
+
+            <div className="table-wrap">
+              <table className="table">
               <thead>
                 <tr>
                   <th>#</th>
@@ -1412,7 +1498,7 @@ The driver behaved inappropriately.`}
                           {needsManualReview(
                             item.confidence
                           )
-                            ? " · Review"
+                            ? " Ãƒâ€šÃ‚Â· Review"
                             : ""}
                         </div>
                       </td>
@@ -1425,8 +1511,9 @@ The driver behaved inappropriately.`}
                   )
                 )}
               </tbody>
-            </table>
-          </div>
+              </table>
+            </div>
+          </>
         )}
       </Panel>
     </section>
@@ -1437,6 +1524,10 @@ The driver behaved inappropriately.`}
       total,
       urgentCount,
       normalCount,
+      manualReviewCount,
+      highConfidenceCount,
+      mediumConfidenceCount,
+      lowConfidenceCount,
       avgConfidence,
       categoryEntries,
     } = analytics;
@@ -1457,9 +1548,9 @@ The driver behaved inappropriately.`}
           />
 
           <Stat
-            label="Normal Tickets"
-            value={normalCount}
-            note="Standard routing"
+            label="Manual Review"
+            value={manualReviewCount}
+            note="Confidence below 30%"
           />
 
           <Stat
@@ -1469,7 +1560,41 @@ The driver behaved inappropriately.`}
           />
         </div>
 
-        <div className="two-col">
+        <Panel
+          label="Confidence"
+          title="Confidence bands & review safety net"
+          i={0}
+        >
+          <div className="priority-grid">
+            <div className="priority-card normal-card">
+              <span>High Ãƒâ€šÃ‚Â· 70%+</span>
+              <strong>{highConfidenceCount}</strong>
+            </div>
+
+            <div className="priority-card">
+              <span>Medium Ãƒâ€šÃ‚Â· 30ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Å“69%</span>
+              <strong>{mediumConfidenceCount}</strong>
+            </div>
+
+            <div className="priority-card urgent-card">
+              <span>Low Ãƒâ€šÃ‚Â· below 30%</span>
+              <strong>{lowConfidenceCount}</strong>
+            </div>
+
+            <div className="priority-card">
+              <span>Normal Tickets</span>
+              <strong>{normalCount}</strong>
+            </div>
+          </div>
+
+          <p className="confidence-note" style={{ marginTop: 14 }}>
+            Confidence is a decision-score based indicator, not a calibrated
+            probability. Low-confidence predictions are surfaced for manual
+            review instead of being silently treated as certain.
+          </p>
+        </Panel>
+
+        <div className="two-col" style={{ marginTop: 18 }}>
           <Panel
             label="Categories"
             title="Ticket distribution"
@@ -1508,7 +1633,7 @@ The driver behaved inappropriately.`}
                           </span>
 
                           <strong>
-                            {count} ·{" "}
+                            {count} Ãƒâ€šÃ‚Â·{" "}
                             {
                               percentage
                             }
@@ -1626,7 +1751,7 @@ The driver behaved inappropriately.`}
           label="Model"
           value={
             health?.model_version ||
-            "—"
+            "ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â"
           }
           note="Active version"
         />
@@ -1638,7 +1763,7 @@ The driver behaved inappropriately.`}
               ? health.model_loaded
                 ? "Yes"
                 : "No"
-              : "—"
+              : "ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â"
           }
           note="Runtime availability"
         />
@@ -1774,6 +1899,10 @@ The driver behaved inappropriately.`}
               </p>
             </div>
           </div>
+
+          <div className="team-credit">
+            Built by Team CodeXtreme
+          </div>
         </div>
       </aside>
 
@@ -1837,9 +1966,119 @@ The driver behaved inappropriately.`}
             ? renderAnalytics()
             : renderStatus()}
         </div>
+
+        <footer className="main-footer">
+          Multilingual Support Intelligence Engine
+        </footer>
       </main>
+
+      {showEvaluation && (
+        <div
+          className="evaluation-overlay"
+          onClick={() => setShowEvaluation(false)}
+        >
+          <div
+            className="evaluation-modal"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="evaluation-modal-header">
+              <div>
+                <span className="panel-label">
+                  Model Evaluation
+                </span>
+
+                <h2>
+                  Validation evidence
+                </h2>
+              </div>
+
+              <button
+                className="evaluation-close"
+                onClick={() => setShowEvaluation(false)}
+                aria-label="Close evaluation"
+              >
+                X
+              </button>
+            </div>
+
+            <div className="evaluation-score-grid">
+              <div className="evaluation-score">
+                <span>
+                  Category validation score
+                </span>
+
+                <strong>88.1%</strong>
+
+                <small>
+                  Validation-tuned result
+                </small>
+              </div>
+
+              <div className="evaluation-score">
+                <span>
+                  Urgency validation accuracy
+                </span>
+
+                <strong>97.1%</strong>
+
+                <small>
+                  Validation result
+                </small>
+              </div>
+            </div>
+
+            <div className="evaluation-info">
+              <div>
+                <span>Validation set</span>
+                <strong>800 tickets</strong>
+              </div>
+
+              <div>
+                <span>Category classes</span>
+                <strong>11</strong>
+              </div>
+
+              <div>
+                <span>Model version</span>
+                <strong>v1.2</strong>
+              </div>
+            </div>
+
+            <div className="evaluation-details">
+              <div className="evaluation-detail-row">
+                <span>Category model</span>
+                <strong>Word + Character TF-IDF + LinearSVC</strong>
+              </div>
+
+              <div className="evaluation-detail-row">
+                <span>Macro F1 score</span>
+                <strong>0.884</strong>
+              </div>
+
+              <div className="evaluation-detail-row">
+                <span>Urgency model</span>
+                <strong>Classical ML classifier</strong>
+              </div>
+
+              <div className="evaluation-detail-row">
+                <span>Evaluation basis</span>
+                <strong>Project validation split</strong>
+              </div>
+            </div>
+
+            <p className="evaluation-note">
+              Results shown above were measured on the project validation split.
+              Confidence values are decision-score indicators, not calibrated
+              probabilities. Low-confidence predictions are flagged for manual review.
+            </p>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
 export default App;
+
+
+
