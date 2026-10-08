@@ -14,7 +14,7 @@ from fastapi.middleware.cors import CORSMiddleware
 # =========================================================
 # CONFIG
 # =========================================================
-MODEL_VERSION = "v1.0"
+MODEL_VERSION = "v1.2"
 PREDICT_MAX_BYTES = 1 * 1024 * 1024
 BATCH_MAX_BYTES = 5 * 1024 * 1024
 JOB_MAX_BYTES = 25 * 1024 * 1024
