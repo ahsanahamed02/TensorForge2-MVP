@@ -76,6 +76,17 @@ const formatLabel = (value) => {
 const pct = (value) =>
   Math.round((value || 0) * 100);
 
+const getConfidenceBand = (value = 0) => {
+  const percent = pct(value);
+
+  if (percent >= 70) return "High";
+  if (percent >= 30) return "Medium";
+  return "Low";
+};
+
+const needsManualReview = (value = 0) =>
+  pct(value) < 30;
+
 const getHeaders = () => {
   const headers = {
     "Content-Type": "application/json",
@@ -411,16 +422,27 @@ function App() {
     setError("");
   };
 
-  const batchLines = useMemo(
-    () =>
-      batchText
-        .split("\n")
-        .map((line) =>
-          line.trim()
-        )
-        .filter(Boolean),
-    [batchText]
-  );
+  const batchLines = useMemo(() => {
+    const lines = batchText
+      .split("\n")
+      .map((line) => line.trim())
+      .filter(Boolean);
+
+    if (lines.length === 0) {
+      return [];
+    }
+
+    const first = lines[0].toLowerCase();
+
+    const looksLikeHeader =
+      first.includes("id") &&
+      first.includes("subject") &&
+      first.includes("text");
+
+    return looksLikeHeader
+      ? lines.slice(1)
+      : lines;
+  }, [batchText]);
 
   const batchCount =
     batchLines.length;
@@ -1063,6 +1085,30 @@ function App() {
                       Urgent
                     </span>
                   )}
+
+                  <span
+                    className="panel-chip"
+                    style={{ marginTop: 8 }}
+                  >
+                    {getConfidenceBand(
+                      result.confidence
+                    )} confidence
+                  </span>
+
+                  {needsManualReview(
+                    result.confidence
+                  ) && (
+                    <span
+                      className="urgent-badge"
+                      style={{ marginTop: 8 }}
+                    >
+                      <Icon
+                        name="alert"
+                        size={14}
+                      />
+                      Manual review recommended
+                    </span>
+                  )}
                 </div>
               </div>
 
@@ -1347,10 +1393,28 @@ The driver behaved inappropriately.`}
                       </td>
 
                       <td>
-                        {pct(
-                          item.confidence
-                        )}
-                        %
+                        <strong>
+                          {pct(
+                            item.confidence
+                          )}
+                          %
+                        </strong>
+                        <div
+                          className="dim"
+                          style={{
+                            marginTop: 4,
+                            fontSize: 12,
+                          }}
+                        >
+                          {getConfidenceBand(
+                            item.confidence
+                          )}
+                          {needsManualReview(
+                            item.confidence
+                          )
+                            ? " · Review"
+                            : ""}
+                        </div>
                       </td>
 
                       <td className="dim">
